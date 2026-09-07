@@ -43,7 +43,7 @@
     ],
     "modules": [
         "vlc.json",
-        "../shared-modules/libappindicator/libappindicator-gtk3-introspection-12.10.json",
+        "shared-modules/libappindicator/libappindicator-gtk3-introspection-12.10.json",
         "pypi-deps.json",
         {
             "name": "gnome-desktop",
