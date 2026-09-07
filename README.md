@@ -84,6 +84,7 @@ You can also find it in the **Zorin OS Software store**.
 ![](res/screenshot-1.png)
 ![](res/screenshot-2.png)
 ![](res/screenshot-3.png)
+![](res/screenshot-4.png)
 
 ## Performance & hardware compatibility ⚡
 
