@@ -2,6 +2,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 APP_ID="io.github.swordberry.Hidamari_Prism"
+
+echo "==> Setting up flatpak shared-modules submodule..."
+git submodule update --init pkgs/flatpak/shared-modules 2>/dev/null || true
 MANIFEST="pkgs/flatpak/io.github.swordberry.Hidamari_Prism.json"
 BUILD_DIR="build-flatpak"
 BUNDLE="hidamari_prism-wallpapers.flatpak"
