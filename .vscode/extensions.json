@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "bilelmoussaoui.flatpak-vscode",
+        "charliermarsh.ruff",
+        "ms-python.python"
+    ]
+}

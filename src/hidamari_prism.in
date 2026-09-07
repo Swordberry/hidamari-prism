@@ -1,0 +1,58 @@
+#!@PYTHON@
+
+# hidamari_prism.in
+# 
+# Copyright (C) 2022 Jeff Shee (jeffshee8969@gmail.com)
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import os
+import sys
+import signal
+import locale
+import gettext
+
+# Bundled libraries and typelibs may land under /app/lib64 (the SDK uses lib64
+# as the meson libdir). Make sure the dynamic loader and GObject introspection
+# can find them at runtime.
+for _libdir in ('/app/lib64', '/app/lib'):
+    if os.path.isdir(_libdir):
+        _cur_lib = os.environ.get('LD_LIBRARY_PATH', '')
+        if _cur_lib:
+            if _libdir not in _cur_lib.split(os.pathsep):
+                os.environ['LD_LIBRARY_PATH'] = _libdir + os.pathsep + _cur_lib
+        else:
+            os.environ['LD_LIBRARY_PATH'] = _libdir
+    _gir = os.path.join(_libdir, 'girepository-1.0')
+    if os.path.isdir(_gir):
+        _cur_gir = os.environ.get('GI_TYPELIB_PATH', '')
+        if _cur_gir:
+            if _gir not in _cur_gir.split(os.pathsep):
+                os.environ['GI_TYPELIB_PATH'] = _gir + os.pathsep + _cur_gir
+        else:
+            os.environ['GI_TYPELIB_PATH'] = _gir
+
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+localedir = '@localedir@'
+
+sys.path.insert(1, pkgdatadir)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+locale.bindtextdomain('hidamari_prism', localedir)
+locale.textdomain('hidamari_prism')
+gettext.install('hidamari_prism', localedir)
+
+if __name__ == '__main__':
+    from hidamari_prism.__main__ import main
+    sys.exit(main(VERSION, pkgdatadir, localedir))

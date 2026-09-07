@@ -1,0 +1,8 @@
+{
+    "uuid": "window-state@io.github.swordberry.Hidamari_Prism",
+    "name": "Hidamari Prism Window State",
+    "description": "Mirrors maximized/fullscreen window state to a small file so Hidamari Prism can pause its wallpapers while they are covered. Used for 'Pause when maximized window' on GNOME Wayland.",
+    "shell-version": ["42", "43", "44", "45", "46", "47", "48", "49"],
+    "version": 1,
+    "url": "https://github.com/swordberry/hidamari-prism"
+}

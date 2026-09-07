@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Hidamari Prism
+Exec=hidamari_prism
+Icon=io.github.swordberry.Hidamari_Prism
+Terminal=false
+Type=Application
+Categories=GTK;Utility;
+StartupNotify=true

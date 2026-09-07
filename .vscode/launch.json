@@ -1,0 +1,25 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Hidamari_Prism",
+            "type": "python",
+            "request": "launch",
+            "module": "hidamari_prism",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/src",
+            "args": ["-d"]
+        },
+        {
+            "name": "Launch Control Panel",
+            "type": "python",
+            "request": "launch",
+            "module": "hidamari_prism.gui.control",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/src"
+        }
+    ]
+}

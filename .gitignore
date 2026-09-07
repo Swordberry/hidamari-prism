@@ -1,0 +1,23 @@
+# Byte-compiled
+__pycache__/
+
+# Build
+build/
+_build/
+
+# Virtual environments
+/venv/
+.venv/
+
+# Tooling caches
+.ruff_cache/
+
+# Flatpak build output
+.flatpak/
+.flatpak-builder/
+build-flatpak/
+*.flatpak
+
+# Local build & staging artifacts
+/repo/
+*.log

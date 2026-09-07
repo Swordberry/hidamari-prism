@@ -1,0 +1,151 @@
+<?xml version='1.0' encoding='utf-8'?>
+<component type="desktop-application">
+  <!--Created with jdAppStreamEdit 9.2-->
+  <id>io.github.swordberry.Hidamari_Prism</id>
+  <name>Hidamari Prism</name>
+  <summary>Video and image wallpaper for Linux</summary>
+  <developer id="io.github.swordberry">
+    <name>Swordberry</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <url type="homepage">https://github.com/swordberry/hidamari-prism</url>
+  <description>
+    <p>Hidamari Prism 日溜まり【ひだまり】(n) sunny spot; exposure to the sun</p>
+    <p>Play videos, animated webpages, or static images as your desktop wallpaper, with a focus on low power usage and broad hardware and desktop-environment compatibility.</p>
+    <p>This project is a fork of <em>Hidamari</em> by Jeff Shee, and is developed with the help of AI. The original project lives at <em>github.com/jeffshee/hidamari</em>. Both the original code and this fork are licensed under GPL-3.0-or-later.</p>
+    <p>New in the Hidamari Prism fork:</p>
+    <ul>
+      <li>Static image wallpapers — zero rendering or decoding overhead</li>
+      <li>Wallpaper playlists, including adding an entire folder at once</li>
+      <li>Ordered (sequential) playlist playback when shuffle is turned off</li>
+      <li>Pause and mute the wallpaper automatically when a window is maximized</li>
+      <li>GNOME Wayland support via a tiny bundled GNOME Shell extension</li>
+      <li>Power-efficient defaults: hardware decoding with automatic CPU fallback</li>
+      <li>Multi-monitor support with per-monitor decoders and hot-plug handling</li>
+    </ul>
+    <p>Similar functionality to Xwinwrap + mpv or Komorebi, with more features.</p>
+  </description>
+  <releases>
+    <release version="1.0" date="2026-09-05" type="stable">
+      <description>
+        <p>Hidamari Prism fork 1.0</p>
+        <ul>
+          <li>Static image wallpaper support</li>
+          <li>Playlist management, including add-folder support</li>
+          <li>Ordered playlist playback when shuffle is off</li>
+          <li>Pause/mute when maximized with a bundled GNOME Wayland extension</li>
+          <li>Power efficiency and hardware-compatibility improvements</li>
+          <li>Fork branding, credits, and donate links</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.7" date="2026-07-09" type="stable">
+      <description>
+        <ul>
+          <li>Refactor and modernize the codebase for easier maintenance</li>
+          <li>Update dependencies and bump the GNOME runtime to 50</li>
+          <li>Reduce CPU usage during video playback</li>
+          <li>Fix video thumbnails not showing in the Flatpak version</li>
+          <li>Fix webpage wallpaper showing a blank screen on NVIDIA graphics</li>
+          <li>Add Japanese translation</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.6" date="2025-01-03" type="stable">
+      <description>
+        <ul>
+          <li>Add multi monitor feature for video (@xaprier)</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.5" date="2024-06-30" type="stable">
+      <description>
+        <ul>
+          <li>Update dependencies for Flatpak</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.4" date="2023-08-20" type="stable">
+      <description>
+        <ul>
+          <li>Fix bug related to environment variable XDG_CURRENT_DESKTOP</li>
+          <li>Fix player process leak (not terminated after playback stopped)</li>
+          <li>Fix video playback block screensaver</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.3" date="2023-04-01" type="stable">
+      <description>
+        <ul>
+          <li>Fix crash in streaming mode</li>
+          <li>Fix incorrect sound fading behavior</li>
+          <li>Update dependecies</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.2" date="2022-11-13" type="stable">
+      <description>
+        <ul>
+          <li>Fixed for local video files which containing quotes in filename</li>
+          <li>Avoid shell injection vulnerability</li>
+          <li>Switched python multiprocessing method to forkserver for performance</li>
+          <li>Added titles to Hidamari_Prism's processes for easier debugging</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.1" date="2022-11-05" type="stable">
+      <description>
+        <ul>
+          <li>Added desktop icon workaround for ZorinOS</li>
+          <li>Fixed center-crop for widescreen</li>
+          <li>Allow screensaver (screen blank) if playback is paused</li>
+          <li>Minor tweak</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.0-beta4" date="2022-09-23" type="stable">
+      <description>
+        <ul>
+          <li>Fixed autostart issue</li>
+          <li>Fixed a crash for non-GNOME distros</li>
+        </ul>
+      </description>
+    </release>
+    <release version="3.0-beta3" date="2022-09-06" type="stable">
+      <description>
+        <p>Fixed bug for non-GNOME distros. Also some minor improvements in logging messages.</p>
+      </description>
+    </release>
+    <release version="3.0-beta2" date="2022-09-03" type="stable">
+      <description>
+        <p>UI improvements! ✨</p>
+      </description>
+    </release>
+    <release version="3.0-beta1" date="2022-08-31" type="stable">
+      <description>
+        <p>Hi! Hidamari_Prism v3</p>
+        <ul>
+          <li>First Flatpak build 📦</li>
+          <li>Bug fixes and performance improvements 😎</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <url type="donation">https://ko-fi.com/swordberry</url>
+  <categories>
+    <category>GTK</category>
+    <category>Utility</category>
+  </categories>
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+  <content_rating type="oars-1.1"/>
+  <launchable type="desktop-id">io.github.swordberry.Hidamari_Prism.desktop</launchable>
+  <keywords>
+    <keyword>Live Wallpaper</keyword>
+    <keyword>Video Wallpaper</keyword>
+    <keyword>Wallpaper</keyword>
+  </keywords>
+</component>
