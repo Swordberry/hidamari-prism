@@ -1,13 +1,11 @@
 import ctypes
 import glob
-import json
 import logging
 import os
 import pathlib
 import random
 import subprocess
 import sys
-import tempfile
 import time
 from threading import Timer, Thread
 
@@ -17,7 +15,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 import vlc
 from gi.repository import Gdk, Gio, GLib, Gtk
-from PIL import Image, ImageChops, ImageFilter, ImageStat
+from PIL import Image, ImageFilter
 from pydbus import SessionBus
 
 from hidamari_prism.commons import (
@@ -32,7 +30,6 @@ from hidamari_prism.commons import (
     HARDWARE_ACCEL_AUTO,
     HARDWARE_ACCEL_ON,
     HARDWARE_ACCEL_OFF,
-    CONFIG_KEY_AUTO_LOOP,
     CONFIG_KEY_MODE,
     CONFIG_KEY_MUTE,
     CONFIG_KEY_MUTE_WHEN_MAXIMIZED,
@@ -92,40 +89,6 @@ _HW_FAILURE_TRIGGER = 4  # one faulty-decode episode is enough to fall back
 
 VLC_STDERR_LOG_PATH = os.path.join(CONFIG_DIR, "vlc_stderr.log")
 
-# Clean-loop points persist across player respawns (the watchdog respawns a new
-# player process in software mode, which would otherwise forget every point
-# we already paid ffmpeg to find). Keyed by absolute media path; values are the
-# loop-end seconds (float) or null. This is what lets a wallpaper whose loop
-# point was already found play seamlessly on the very first frame of a later
-# session, with no mid-play restart.
-CLEAN_LOOP_CACHE_PATH = os.path.join(CONFIG_DIR, "clean_loops.json")
-
-
-def _load_loop_cache():
-    """Return the persisted {path: loop_end_seconds} map (best effort)."""
-    try:
-        with open(CLEAN_LOOP_CACHE_PATH, encoding="utf-8") as f:
-            raw = json.load(f)
-        out = {}
-        for k, v in raw.items():
-            if isinstance(v, (int, float)):
-                out[k] = float(v)
-            elif v is None:
-                out[k] = None
-        return {k: v for k, v in out.items() if os.path.isfile(k)}
-    except (OSError, ValueError, TypeError):
-        return {}
-
-
-def _save_loop_cache(cache):
-    """Persist the {path: loop_end_seconds} map. Best effort: a missing/corrupt
-    cache file only costs a re-run of the cheap ffmpeg loop-point detection."""
-    try:
-        with open(CLEAN_LOOP_CACHE_PATH, "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-    except OSError:
-        pass
-
 
 def hardware_accel_enabled(config):
     """Resolve the three-state hardware-decoding preference into a boolean
@@ -143,113 +106,6 @@ def hardware_accel_enabled(config):
         return False
     # "auto": try hardware unless the watchdog already fell back this session.
     return not bool(config.get(CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK, False))
-
-
-# ---------------------------------------------------------------------------
-# Clean-loop point detection.
-#
-# A looping wallpaper only looks seamless if the frame just before the loop
-# matches the very first frame. Videos recorded as a single take usually do
-# *not* have that property, so the loop visibly "jumps" back to frame 0. We
-# find a timestamp near the end whose frame looks like the first frame and make
-# VLC loop there (via ``stop-time``) instead of at the true end -- turning any
-# looping video into a clean loop, automatically.
-#
-# This is intentionally cheap: the first frame and a handful of downsampled
-# tail frames are extracted once per video with ffmpeg, compared in grayscale,
-# and the result is cached for the player's lifetime. If no frame matches (or
-# anything fails) it silently falls back to normal end-to-end looping.
-# ---------------------------------------------------------------------------
-_LOOP_TAIL_WINDOW_SEC = 8.0   # only consider the last N seconds as loop candidates
-_LOOP_SAMPLE_FPS = 5          # frames/sec sampled from the tail window
-_LOOP_THUMB_W = 64            # compare at this thumbnail width (grayscale)
-_LOOP_MAX_TAIL_FRAMES = 40    # hard cap on candidate frames
-_LOOP_MATCH_MAX_DIFF = 18.0   # mean grayscale diff (0..255) below which two
-                              # frames are considered "the same"
-
-
-def _mean_abs_diff(a: Image.Image, b: Image.Image) -> float:
-    """Mean absolute difference of two same-size grayscale images (0..255)."""
-    try:
-        diff = ImageChops.difference(a, b)
-        return float(ImageStat.Stat(diff).mean[0])
-    except Exception:
-        return 255.0
-
-
-def _find_video_loop_point(path: str):
-    """Return the timestamp (seconds) near the end of `path` whose frame best
-    matches the first frame, or None if no clean loop point exists."""
-    try:
-        duration = float(
-            subprocess.check_output(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                 "-of", "default=noprint_wrappers=1:nokey=1", path],
-                shell=False,
-            ).strip()
-        )
-    except (subprocess.CalledProcessError, ValueError):
-        return None
-    if duration < 4.0:
-        return None
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="hidamari_loop_") as td:
-            first_path = os.path.join(td, "first.png")
-            scale = f"scale={_LOOP_THUMB_W}:-1"
-            ret = subprocess.run(
-                ["ffmpeg", "-v", "error", "-ss", "0", "-i", path,
-                 "-frames:v", "1", "-vf", scale, first_path],
-                shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            if ret.returncode != 0 or not os.path.isfile(first_path):
-                return None
-
-            first = Image.open(first_path).convert("L")
-
-            tail_start = max(0.0, duration - _LOOP_TAIL_WINDOW_SEC)
-            tail_pattern = os.path.join(td, "tail_%04d.png")
-            ret = subprocess.run(
-                ["ffmpeg", "-v", "error", "-ss", f"{tail_start:.3f}", "-i", path,
-                 "-vf", f"fps={_LOOP_SAMPLE_FPS},{scale}",
-                 "-frames:v", str(_LOOP_MAX_TAIL_FRAMES), tail_pattern],
-                shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            if ret.returncode != 0:
-                return None
-
-            best_diff = None
-            best_time = None
-            # Only loop at a matching frame near the END of the video: a match
-            # earlier would chop the clip short. Preferring the best frame that
-            # still lies in the final 10% (rather than taking the globally best
-            # tail match) keeps short looping wallpapers working -- a global
-            # best near the start of a short clip used to reject the clip even
-            # though a good near-end match existed.
-            near_end_thresh = duration * 0.9
-            for idx, tail_file in enumerate(
-                sorted(glob.glob(os.path.join(td, "tail_*.png")))
-            ):
-                try:
-                    cand = Image.open(tail_file).convert("L")
-                except OSError:
-                    continue
-                cand_time = tail_start + (idx / _LOOP_SAMPLE_FPS)
-                if cand_time < near_end_thresh:
-                    continue
-                diff = _mean_abs_diff(first, cand)
-                if best_diff is None or diff < best_diff:
-                    best_diff = diff
-                    best_time = cand_time
-
-            if best_diff is None or best_time is None:
-                return None
-            if best_diff > _LOOP_MATCH_MAX_DIFF:
-                return None
-            return best_time
-    except Exception as e:  # noqa: BLE001
-        logger.debug(f"[Loop] clean-loop detection failed for {path}: {e}")
-        return None
 
 
 def _redirect_stderr_to_file():
@@ -621,11 +477,6 @@ class VideoPlayer(BasePlayer):
         self._independent_seeded = False
         self._hw_check_id = None
         self._hw_fallback_done = False
-
-        # Clean-loop point cache: path -> loop_end_seconds (float) or None.
-        self._loop_points = {}
-        self._loop_computing = set()
-        self._loop_points.update(_load_loop_cache())
 
         # Initialize X11 threads so VLC can use hardware decoding.
         # `libX11.so.6` fix for Fedora 33
@@ -1005,20 +856,6 @@ class VideoPlayer(BasePlayer):
         if is_static_image(source):
             media.add_option("image-duration=-1")
             media.add_option("no-audio")
-        elif self.config.get(CONFIG_KEY_AUTO_LOOP, True):
-            # Videos + auto-loop on: apply a clean-loop point (loop at the tail
-            # frame that matches the first frame) when one has been found, so the
-            # wallpaper loops seamlessly. A cached value of 0/None means "checked
-            # and no clean point exists", so only kick off detection for clips
-            # we have never examined.
-            loop_end = self._loop_points.get(source)
-            if loop_end:
-                media.add_option(f"stop-time={loop_end:.3f}")
-            elif (
-                source not in self._loop_points
-                and source not in self._loop_computing
-            ):
-                self._start_clean_loop_detection(source)
         # Prevent awful ear-rape with multiple instances.
         if not monitor.is_primary():
             media.add_option("no-audio")
@@ -1027,38 +864,6 @@ class VideoPlayer(BasePlayer):
         # Stretch the wallpaper to fill this monitor's current size.
         rect = monitor.get_geometry()
         window.stretch_fit(rect.width, rect.height)
-
-    def _start_clean_loop_detection(self, source):
-        """Compute a clean-loop point for `source` in the background and, once
-        found, re-apply it to any window playing that source."""
-        if source in self._loop_computing:
-            return
-        self._loop_computing.add(source)
-
-        def _worker():
-            point = _find_video_loop_point(source)
-            GLib.idle_add(self._finish_clean_loop_detection, source, point)
-
-        Thread(target=_worker, daemon=True).start()
-
-    def _finish_clean_loop_detection(self, source, point):
-        self._loop_computing.discard(source)
-        self._loop_points[source] = point
-        if not point:
-            return False
-        logger.info(f"[Loop] clean loop point for {os.path.basename(source)}: {point:.2f}s")
-        # Persist so later sessions / respawned players start this clip already
-        # knowing its loop point.
-        _save_loop_cache(self._loop_points)
-        # We deliberately do NOT re-apply the media here: swapping in a new
-        # media object mid-playback restarts the VLC decoder on the live
-        # window, which visibly freezes/glitches the wallpaper (and on heavy
-        # 4K60 clips throws a burst of ffmpeg get_buffer()/no frame! errors).
-        # The point is cached and picked up the next time this window's media
-        # is (re)built -- the next shuffle return to this clip, a manual apply,
-        # or a monitor change -- giving a seamless loop from the very start of
-        # that play with no mid-flight restart.
-        return False
 
     @data_source.setter
     def data_source(self, data_source):

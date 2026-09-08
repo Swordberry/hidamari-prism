@@ -29,7 +29,6 @@ from hidamari_prism.commons import (
     HARDWARE_ACCEL_ON,
     HARDWARE_ACCEL_OFF,
     HARDWARE_ACCEL_OPTIONS,
-    CONFIG_KEY_AUTO_LOOP,
     CONFIG_KEY_MODE,
     CONFIG_KEY_MUTE,
     CONFIG_KEY_MUTE_WHEN_MAXIMIZED,
@@ -239,11 +238,6 @@ class ControlPanel(Gtk.Application):
                     CONFIG_KEY_SHUFFLE_INDEPENDENT, False
                 ),
                 self.on_shuffle_independent,
-            ),
-            (
-                "auto_loop",
-                self.config.get(CONFIG_KEY_AUTO_LOOP, True),
-                self.on_auto_loop,
             ),
         ]
 
@@ -591,14 +585,6 @@ class ControlPanel(Gtk.Application):
         self._save_config()
         if self.server is not None:
             self.server.reload_shuffle_settings()
-
-    def on_auto_loop(self, action, state):
-        action.set_state(state)
-        self.config[CONFIG_KEY_AUTO_LOOP] = bool(state)
-        logger.info(f"[GUI] {action.get_name()}: {state}")
-        self._save_config()
-        # Applied on the next wallpaper load/apply; the player reads the flag
-        # each time it (re)applies a source.
 
     def on_hardware_accel_combo_changed(self, widget):
         combo: Gtk.ComboBoxText = self.builder.get_object("HardwareAccelCombo")

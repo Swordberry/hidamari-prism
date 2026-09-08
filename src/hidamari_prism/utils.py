@@ -29,7 +29,6 @@ from hidamari_prism.commons import (
     HARDWARE_ACCEL_AUTO,
     HARDWARE_ACCEL_ON,
     HARDWARE_ACCEL_OFF,
-    CONFIG_KEY_AUTO_LOOP,
     CONFIG_PATH,
     CONFIG_TEMPLATE,
     CONFIG_VERSION,
@@ -665,7 +664,6 @@ class ConfigUtil:
 
     def _migrateV8To9(self, config: dict):
         logger.debug("[Config] Migration from version 8 to 9.")
-        config.setdefault(CONFIG_KEY_AUTO_LOOP, True)
         config["version"] = 9
         # save config file
         self.save(config)
@@ -731,7 +729,7 @@ class ConfigUtil:
                     # migration to version 8 for hardware-accel auto/on/off modes
                     if config.get("version") <= 7 and CONFIG_VERSION >= 8:
                         self._migrateV7To8(config)
-                    # migration to version 9 for the auto-loop preference
+                    # migration to version 9
                     if config.get("version") <= 8 and CONFIG_VERSION >= 9:
                         self._migrateV8To9(config)
                     self._checkDefaultSource(config)
