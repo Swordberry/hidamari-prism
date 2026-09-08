@@ -1,5 +1,6 @@
 import ctypes
 import glob
+import json
 import logging
 import os
 import pathlib
@@ -90,6 +91,40 @@ _HW_FAILURE_MARKERS = (
 _HW_FAILURE_TRIGGER = 4  # one faulty-decode episode is enough to fall back
 
 VLC_STDERR_LOG_PATH = os.path.join(CONFIG_DIR, "vlc_stderr.log")
+
+# Clean-loop points persist across player respawns (the watchdog respawns a new
+# player process in software mode, which would otherwise forget every point
+# we already paid ffmpeg to find). Keyed by absolute media path; values are the
+# loop-end seconds (float) or null. This is what lets a wallpaper whose loop
+# point was already found play seamlessly on the very first frame of a later
+# session, with no mid-play restart.
+CLEAN_LOOP_CACHE_PATH = os.path.join(CONFIG_DIR, "clean_loops.json")
+
+
+def _load_loop_cache():
+    """Return the persisted {path: loop_end_seconds} map (best effort)."""
+    try:
+        with open(CLEAN_LOOP_CACHE_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        out = {}
+        for k, v in raw.items():
+            if isinstance(v, (int, float)):
+                out[k] = float(v)
+            elif v is None:
+                out[k] = None
+        return {k: v for k, v in out.items() if os.path.isfile(k)}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _save_loop_cache(cache):
+    """Persist the {path: loop_end_seconds} map. Best effort: a missing/corrupt
+    cache file only costs a re-run of the cheap ffmpeg loop-point detection."""
+    try:
+        with open(CLEAN_LOOP_CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+    except OSError:
+        pass
 
 
 def hardware_accel_enabled(config):
@@ -590,6 +625,7 @@ class VideoPlayer(BasePlayer):
         # Clean-loop point cache: path -> loop_end_seconds (float) or None.
         self._loop_points = {}
         self._loop_computing = set()
+        self._loop_points.update(_load_loop_cache())
 
         # Initialize X11 threads so VLC can use hardware decoding.
         # `libX11.so.6` fix for Fedora 33
@@ -972,11 +1008,16 @@ class VideoPlayer(BasePlayer):
         elif self.config.get(CONFIG_KEY_AUTO_LOOP, True):
             # Videos + auto-loop on: apply a clean-loop point (loop at the tail
             # frame that matches the first frame) when one has been found, so the
-            # wallpaper loops seamlessly. If none is cached, kick off detection.
+            # wallpaper loops seamlessly. A cached value of 0/None means "checked
+            # and no clean point exists", so only kick off detection for clips
+            # we have never examined.
             loop_end = self._loop_points.get(source)
             if loop_end:
                 media.add_option(f"stop-time={loop_end:.3f}")
-            elif source not in self._loop_computing:
+            elif (
+                source not in self._loop_points
+                and source not in self._loop_computing
+            ):
                 self._start_clean_loop_detection(source)
         # Prevent awful ear-rape with multiple instances.
         if not monitor.is_primary():
@@ -1006,29 +1047,18 @@ class VideoPlayer(BasePlayer):
         if not point:
             return False
         logger.info(f"[Loop] clean loop point for {os.path.basename(source)}: {point:.2f}s")
-        # Re-apply so the stop-time takes effect, but keep each window's playback
-        # position so the detection pass does not visibly restart the wallpaper.
-        for monitor, window in self.windows.items():
-            if window is None or not self._window_source_matches(window, monitor, source):
-                continue
-            try:
-                position = window.get_position()
-            except Exception:  # noqa: BLE001
-                position = 0.0
-            self._apply_source_to_window(monitor, window)
-            try:
-                if position > 0.0:
-                    window.set_position(min(position, 0.99))
-            except Exception:  # noqa: BLE001
-                pass
+        # Persist so later sessions / respawned players start this clip already
+        # knowing its loop point.
+        _save_loop_cache(self._loop_points)
+        # We deliberately do NOT re-apply the media here: swapping in a new
+        # media object mid-playback restarts the VLC decoder on the live
+        # window, which visibly freezes/glitches the wallpaper (and on heavy
+        # 4K60 clips throws a burst of ffmpeg get_buffer()/no frame! errors).
+        # The point is cached and picked up the next time this window's media
+        # is (re)built -- the next shuffle return to this clip, a manual apply,
+        # or a monitor change -- giving a seamless loop from the very start of
+        # that play with no mid-flight restart.
         return False
-
-    def _window_source_matches(self, window, monitor, source):
-        data_source = self.config.get(CONFIG_KEY_DATA_SOURCE) or {}
-        if not isinstance(data_source, dict):
-            return False
-        cur = data_source.get(monitor.get_model()) or data_source.get("Default")
-        return cur == source
 
     @data_source.setter
     def data_source(self, data_source):
