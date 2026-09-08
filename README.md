@@ -81,10 +81,15 @@ You can also find it in the **Zorin OS Software store**.
 
 ## Screenshot 📸
 
+<p align="center">
+  <video src="res/demo.mp4" controls preload="metadata" muted></video>
+</p>
+
+<p align="center">
+  <a href="res/demo.mp4">▶ Watch the full-resolution demo video (mp4, ~39 MB)</a>
+</p>
+
 ![](res/screenshot-1.png)
-![](res/screenshot-2.png)
-![](res/screenshot-3.png)
-![](res/screenshot-4.png)
 
 ## Performance & hardware compatibility ⚡
 
