@@ -71,6 +71,11 @@ def setup_persistent_logging():
             )
         )
         logger = logging.getLogger(LOGGER_NAME)
+        # Ensure the logger itself forwards DEBUG+ records in every process
+        # (server, player, GUI, systray). The forked players don't inherit the
+        # launcher's basicConfig, so without this their INFO/DEBUG lines are
+        # silently dropped by the root (WARNING) level.
+        logger.setLevel(logging.DEBUG)
         # Avoid duplicate handlers if this runs in multiple processes / imports.
         for existing in logger.handlers:
             try:
@@ -89,7 +94,7 @@ MODE_VIDEO = "MODE_VIDEO"
 MODE_STREAM = "MODE_STREAM"
 MODE_WEBPAGE = "MODE_WEBPAGE"
 
-CONFIG_VERSION = 7
+CONFIG_VERSION = 9
 CONFIG_KEY_VERSION = "version"
 CONFIG_KEY_MODE = "mode"
 CONFIG_KEY_DATA_SOURCE = "data_source"
@@ -106,6 +111,14 @@ CONFIG_KEY_FIRST_TIME = "is_first_time"
 CONFIG_KEY_LAUNCH_COUNT = "launch_count"
 CONFIG_KEY_DONATE_ONCE = "donate_once"
 CONFIG_KEY_HARDWARE_ACCEL = "hardware_acceleration"
+CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK = "hardware_accel_autofallback"
+# Hardware-decoding preference: "auto" (try hardware, auto-fall back to software
+# if the GPU decoder glitches), "on" (always hardware), or "off" (always software).
+HARDWARE_ACCEL_AUTO = "auto"
+HARDWARE_ACCEL_ON = "on"
+HARDWARE_ACCEL_OFF = "off"
+HARDWARE_ACCEL_OPTIONS = (HARDWARE_ACCEL_AUTO, HARDWARE_ACCEL_ON, HARDWARE_ACCEL_OFF)
+CONFIG_KEY_AUTO_LOOP = "auto_loop"
 CONFIG_KEY_PLAYLISTS = "playlists"
 CONFIG_KEY_SHUFFLE = "shuffle"
 CONFIG_KEY_SHUFFLE_ENABLED = "enabled"
@@ -129,7 +142,9 @@ CONFIG_TEMPLATE = {
     CONFIG_KEY_FADE_INTERVAL: 0.1,
     CONFIG_KEY_SYSTRAY: False,
     CONFIG_KEY_FIRST_TIME: True,
-    CONFIG_KEY_HARDWARE_ACCEL: True,
+    CONFIG_KEY_HARDWARE_ACCEL: HARDWARE_ACCEL_AUTO,
+    CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK: False,
+    CONFIG_KEY_AUTO_LOOP: True,
     CONFIG_KEY_PLAYLISTS: {},
     CONFIG_KEY_SHUFFLE: {
         CONFIG_KEY_SHUFFLE_ENABLED: False,

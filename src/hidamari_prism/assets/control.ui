@@ -168,13 +168,51 @@ All contributors to Hidamari https://github.com/jeffshee/hidamari/graphs/contrib
           </packing>
         </child>
         <child>
-          <object class="GtkModelButton" id="ToggleHardwareAccel">
+          <object class="GtkModelButton" id="ToggleAutoLoop">
             <property name="visible">True</property>
             <property name="can-focus">True</property>
             <property name="receives-default">True</property>
-            <property name="tooltip-text" translatable="yes">Prefer GPU video decoding (VA-API/VDPAU/NVDEC) with automatic fallback to CPU decoding. Uses less CPU and power; turn off only if your GPU driver misbehaves.</property>
-            <property name="action-name">app.hardware_accel</property>
-            <property name="text" translatable="yes">Hardware acceleration</property>
+            <property name="tooltip-text" translatable="yes">Automatically find the frame near the end of each video that matches the first frame and loop there, so any wallpaper loops seamlessly. Falls back to a normal loop if no match is found in the last 10% of the video. Applies to videos only, not images.</property>
+            <property name="action-name">app.auto_loop</property>
+            <property name="text" translatable="yes">Auto loop</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">6</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="spacing">8</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="halign">start</property>
+                <property name="label" translatable="yes">Hardware acceleration</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkComboBoxText" id="HardwareAccelCombo">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="tooltip-text" translatable="yes">Auto: use GPU decoding when it works, falling back to CPU if the GPU driver misbehaves. On: always GPU. Off: always CPU.</property>
+                <signal name="changed" handler="on_hardware_accel_combo_changed" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>

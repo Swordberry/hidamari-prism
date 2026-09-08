@@ -24,6 +24,9 @@ from hidamari_prism.commons import (
     CONFIG_KEY_SHUFFLE_ACTIVE,
     CONFIG_KEY_SHUFFLE_ENABLED,
     CONFIG_KEY_SHUFFLE_INDEPENDENT,
+    CONFIG_KEY_HARDWARE_ACCEL,
+    CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK,
+    HARDWARE_ACCEL_AUTO,
     CONFIG_KEY_STATIC_WALLPAPER,
     CONFIG_KEY_SYSTRAY,
     CONFIG_KEY_VOLUME,
@@ -118,6 +121,13 @@ class Hidamari_PrismServer:
             ConfigUtil().generate_template()
         self._load_config()
 
+        # A fresh launch re-probes hardware decoding: clear the auto-fallback
+        # flag so "auto" mode starts on hardware again this session (the
+        # watchdog may set it later if this GPU's decoder misbehaves).
+        if self.config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO) == HARDWARE_ACCEL_AUTO:
+            self.config[CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK] = False
+            self._save_config()
+
         # Show the donation popup on the 1st launch of the program, once.
         launch_count = int(self.config.get(CONFIG_KEY_LAUNCH_COUNT, 0)) + 1
         self.config[CONFIG_KEY_LAUNCH_COUNT] = launch_count
@@ -151,8 +161,13 @@ class Hidamari_PrismServer:
         if data_source is not None:
             self.config[CONFIG_KEY_DATA_SOURCE]["Default"] = data_source
 
-        # Quit current then create a new player
-        self._quit_player()
+        # Tear down the old player by terminating/killing its process below.
+        # We deliberately do NOT do a synchronous DBus ``quit_player()`` here:
+        # that call only returns after the player's window.cleanup() finishes,
+        # which can block forever on a wedged VLC decoder (e.g. a hardware
+        # decode failure while "auto" mode falls back). The process signal
+        # handling below terminates the same process regardless, so the
+        # round-trip is redundant AND a deadlock vector.
 
         # Terminate old player process and wait for it to finish
         if self.player_process:

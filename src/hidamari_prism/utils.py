@@ -25,6 +25,11 @@ from hidamari_prism.commons import (
     CONFIG_KEY_SHUFFLE,
     CONFIG_KEY_SHUFFLE_INDEPENDENT,
     CONFIG_KEY_HARDWARE_ACCEL,
+    CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK,
+    HARDWARE_ACCEL_AUTO,
+    HARDWARE_ACCEL_ON,
+    HARDWARE_ACCEL_OFF,
+    CONFIG_KEY_AUTO_LOOP,
     CONFIG_PATH,
     CONFIG_TEMPLATE,
     CONFIG_VERSION,
@@ -641,6 +646,30 @@ class ConfigUtil:
         # save config file
         self.save(config)
 
+    def _migrateV7To8(self, config: dict):
+        logger.debug("[Config] Migration from version 7 to 8.")
+        # Hardware acceleration became a three-state preference (auto/on/off),
+        # replacing the old boolean. A legacy bool maps to on/off; anything else
+        # (or a fresh config) lands on "auto".
+        prev = config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO)
+        if isinstance(prev, bool):
+            # The old boolean "true" already meant "hardware decoding with the
+            # auto-fallback watchdog", so it maps to the new "auto" (not "on").
+            config[CONFIG_KEY_HARDWARE_ACCEL] = HARDWARE_ACCEL_AUTO if prev else HARDWARE_ACCEL_OFF
+        elif prev not in (HARDWARE_ACCEL_AUTO, HARDWARE_ACCEL_ON, HARDWARE_ACCEL_OFF):
+            config[CONFIG_KEY_HARDWARE_ACCEL] = HARDWARE_ACCEL_AUTO
+        config.setdefault(CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK, False)
+        config["version"] = 8
+        # save config file
+        self.save(config)
+
+    def _migrateV8To9(self, config: dict):
+        logger.debug("[Config] Migration from version 8 to 9.")
+        config.setdefault(CONFIG_KEY_AUTO_LOOP, True)
+        config["version"] = 9
+        # save config file
+        self.save(config)
+
     def _checkMissingMonitors(self, old_config: dict, template: dict):
         # Extract the monitors from both configurations
         old_monitors = old_config.get("data_source", {}).keys()
@@ -699,6 +728,12 @@ class ConfigUtil:
                     # migration to version 7 for hardware-acceleration preference
                     if config.get("version") <= 6 and CONFIG_VERSION >= 7:
                         self._migrateV6To7(config)
+                    # migration to version 8 for hardware-accel auto/on/off modes
+                    if config.get("version") <= 7 and CONFIG_VERSION >= 8:
+                        self._migrateV7To8(config)
+                    # migration to version 9 for the auto-loop preference
+                    if config.get("version") <= 8 and CONFIG_VERSION >= 9:
+                        self._migrateV8To9(config)
                     self._checkDefaultSource(config)
                     self._checkMissingMonitors(config, CONFIG_TEMPLATE)
                     if self._check(config):

@@ -24,6 +24,12 @@ from hidamari_prism.commons import (
     CONFIG_KEY_DONATE_ONCE,
     CONFIG_KEY_FIRST_TIME,
     CONFIG_KEY_HARDWARE_ACCEL,
+    CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK,
+    HARDWARE_ACCEL_AUTO,
+    HARDWARE_ACCEL_ON,
+    HARDWARE_ACCEL_OFF,
+    HARDWARE_ACCEL_OPTIONS,
+    CONFIG_KEY_AUTO_LOOP,
     CONFIG_KEY_MODE,
     CONFIG_KEY_MUTE,
     CONFIG_KEY_MUTE_WHEN_MAXIMIZED,
@@ -101,6 +107,7 @@ class ControlPanel(Gtk.Application):
             "on_playlist_icon_view_button_press": self.on_playlist_icon_view_button_press,
             "on_playlist_shuffle_toggled": self.on_playlist_shuffle_toggled,
             "on_playlist_interval_changed": self.on_playlist_interval_changed,
+            "on_hardware_accel_combo_changed": self.on_hardware_accel_combo_changed,
             "on_donate_clicked": self.on_donate_clicked,
         }
         self.builder.connect_signals(signals)
@@ -234,9 +241,9 @@ class ControlPanel(Gtk.Application):
                 self.on_shuffle_independent,
             ),
             (
-                "hardware_accel",
-                self.config.get(CONFIG_KEY_HARDWARE_ACCEL, True),
-                self.on_hardware_accel,
+                "auto_loop",
+                self.config.get(CONFIG_KEY_AUTO_LOOP, True),
+                self.on_auto_loop,
             ),
         ]
 
@@ -585,10 +592,26 @@ class ControlPanel(Gtk.Application):
         if self.server is not None:
             self.server.reload_shuffle_settings()
 
-    def on_hardware_accel(self, action, state):
+    def on_auto_loop(self, action, state):
         action.set_state(state)
-        self.config[CONFIG_KEY_HARDWARE_ACCEL] = bool(state)
+        self.config[CONFIG_KEY_AUTO_LOOP] = bool(state)
         logger.info(f"[GUI] {action.get_name()}: {state}")
+        self._save_config()
+        # Applied on the next wallpaper load/apply; the player reads the flag
+        # each time it (re)applies a source.
+
+    def on_hardware_accel_combo_changed(self, widget):
+        combo: Gtk.ComboBoxText = self.builder.get_object("HardwareAccelCombo")
+        mode = combo.get_active_id()
+        if mode is None or mode not in HARDWARE_ACCEL_OPTIONS:
+            return
+        if mode == self.config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO):
+            return
+        self.config[CONFIG_KEY_HARDWARE_ACCEL] = mode
+        # Changing the preference clears a previous auto-fallback so the new
+        # choice takes effect immediately.
+        self.config[CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK] = False
+        logger.info(f"[GUI] hardware_accel: {mode}")
         self._save_config()
         if self.server is not None:
             self.server.apply_hardware_accel()
@@ -1041,6 +1064,23 @@ class ControlPanel(Gtk.Application):
 
         toggle_mute: Gtk.ToggleButton = self.builder.get_object("ToggleAutostart")
         toggle_mute.set_state = self.is_autostart
+
+        self._reload_hardware_accel_combo()
+
+    def _reload_hardware_accel_combo(self):
+        combo: Gtk.ComboBoxText = self.builder.get_object("HardwareAccelCombo")
+        if combo is None:
+            return
+        self._signal_block(combo, self.on_hardware_accel_combo_changed)
+        combo.remove_all()
+        combo.append(HARDWARE_ACCEL_AUTO, _("Auto (recommended)"))
+        combo.append(HARDWARE_ACCEL_ON, _("On"))
+        combo.append(HARDWARE_ACCEL_OFF, _("Off"))
+        mode = self.config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO)
+        if mode not in HARDWARE_ACCEL_OPTIONS:
+            mode = HARDWARE_ACCEL_AUTO
+        combo.set_active_id(mode)
+        self._signal_unblock(combo, self.on_hardware_accel_combo_changed)
 
     def _reload_icon_view(self, *_):
         self.video_paths = get_video_paths()

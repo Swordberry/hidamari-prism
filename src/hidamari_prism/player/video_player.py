@@ -6,8 +6,9 @@ import pathlib
 import random
 import subprocess
 import sys
+import tempfile
 import time
-from threading import Timer
+from threading import Timer, Thread
 
 import gi
 
@@ -15,16 +16,22 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 import vlc
 from gi.repository import Gdk, Gio, GLib, Gtk
-from PIL import Image, ImageFilter
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 from pydbus import SessionBus
 
 from hidamari_prism.commons import (
     CONFIG_DIR,
     DBUS_NAME_PLAYER,
+    DBUS_NAME_SERVER,
     CONFIG_KEY_DATA_SOURCE,
     CONFIG_KEY_FADE_DURATION_SEC,
     CONFIG_KEY_FADE_INTERVAL,
     CONFIG_KEY_HARDWARE_ACCEL,
+    CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK,
+    HARDWARE_ACCEL_AUTO,
+    HARDWARE_ACCEL_ON,
+    HARDWARE_ACCEL_OFF,
+    CONFIG_KEY_AUTO_LOOP,
     CONFIG_KEY_MODE,
     CONFIG_KEY_MUTE,
     CONFIG_KEY_MUTE_WHEN_MAXIMIZED,
@@ -56,6 +63,210 @@ from hidamari_prism.utils import (
 from hidamari_prism.yt_utils import get_best_audio, get_formats, get_optimal_video
 
 logger = logging.getLogger(LOGGER_NAME)
+
+
+# ---------------------------------------------------------------------------
+# Hardware decode health watchdog.
+#
+# Some GPUs (notably AMD RDNA3 integrated + VA-API through VLC's GL interop)
+# advertise a hardware decoder but corrupt reference frames at runtime,
+# producing streams of "get_buffer() failed" / "no frame!" / "decode_slice"
+# errors from the avcodec module. The wallpaper then freezes/stutters. VLC
+# will not fall back on its own once a hardware decoder is chosen, so we watch
+# those errors and, when a hardware decoder keeps failing, switch the whole
+# player to software decode automatically -- preserving "power-efficient where
+# it works, stable everywhere" without any user action.
+#
+# FFmpeg writes these errors straight to the process stderr (they show up in
+# the systemd journal), which libvlc's own log callback does not see. So we
+# redirect the player's stderr to a file at startup and scan it for failures.
+# ---------------------------------------------------------------------------
+_HW_FAILURE_MARKERS = (
+    "get_buffer() failed",
+    "thread_get_buffer() failed",
+    "no frame",
+    "decode_slice_header error",
+)
+_HW_FAILURE_TRIGGER = 4  # one faulty-decode episode is enough to fall back
+
+VLC_STDERR_LOG_PATH = os.path.join(CONFIG_DIR, "vlc_stderr.log")
+
+
+def hardware_accel_enabled(config):
+    """Resolve the three-state hardware-decoding preference into a boolean
+    "use hardware decoding at this spawn".
+
+    * "on"  -> hardware (no watchdog fallback).
+    * "off" -> software.
+    * "auto"-> hardware, unless the auto-fallback already flagged the current
+       GPU as unstable (set once per session by the watchdog).
+    """
+    mode = config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO)
+    if mode == HARDWARE_ACCEL_ON:
+        return True
+    if mode == HARDWARE_ACCEL_OFF:
+        return False
+    # "auto": try hardware unless the watchdog already fell back this session.
+    return not bool(config.get(CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK, False))
+
+
+# ---------------------------------------------------------------------------
+# Clean-loop point detection.
+#
+# A looping wallpaper only looks seamless if the frame just before the loop
+# matches the very first frame. Videos recorded as a single take usually do
+# *not* have that property, so the loop visibly "jumps" back to frame 0. We
+# find a timestamp near the end whose frame looks like the first frame and make
+# VLC loop there (via ``stop-time``) instead of at the true end -- turning any
+# looping video into a clean loop, automatically.
+#
+# This is intentionally cheap: the first frame and a handful of downsampled
+# tail frames are extracted once per video with ffmpeg, compared in grayscale,
+# and the result is cached for the player's lifetime. If no frame matches (or
+# anything fails) it silently falls back to normal end-to-end looping.
+# ---------------------------------------------------------------------------
+_LOOP_TAIL_WINDOW_SEC = 8.0   # only consider the last N seconds as loop candidates
+_LOOP_SAMPLE_FPS = 5          # frames/sec sampled from the tail window
+_LOOP_THUMB_W = 64            # compare at this thumbnail width (grayscale)
+_LOOP_MAX_TAIL_FRAMES = 40    # hard cap on candidate frames
+_LOOP_MATCH_MAX_DIFF = 18.0   # mean grayscale diff (0..255) below which two
+                              # frames are considered "the same"
+
+
+def _mean_abs_diff(a: Image.Image, b: Image.Image) -> float:
+    """Mean absolute difference of two same-size grayscale images (0..255)."""
+    try:
+        diff = ImageChops.difference(a, b)
+        return float(ImageStat.Stat(diff).mean[0])
+    except Exception:
+        return 255.0
+
+
+def _find_video_loop_point(path: str):
+    """Return the timestamp (seconds) near the end of `path` whose frame best
+    matches the first frame, or None if no clean loop point exists."""
+    try:
+        duration = float(
+            subprocess.check_output(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", path],
+                shell=False,
+            ).strip()
+        )
+    except (subprocess.CalledProcessError, ValueError):
+        return None
+    if duration < 4.0:
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="hidamari_loop_") as td:
+            first_path = os.path.join(td, "first.png")
+            scale = f"scale={_LOOP_THUMB_W}:-1"
+            ret = subprocess.run(
+                ["ffmpeg", "-v", "error", "-ss", "0", "-i", path,
+                 "-frames:v", "1", "-vf", scale, first_path],
+                shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            if ret.returncode != 0 or not os.path.isfile(first_path):
+                return None
+
+            first = Image.open(first_path).convert("L")
+
+            tail_start = max(0.0, duration - _LOOP_TAIL_WINDOW_SEC)
+            tail_pattern = os.path.join(td, "tail_%04d.png")
+            ret = subprocess.run(
+                ["ffmpeg", "-v", "error", "-ss", f"{tail_start:.3f}", "-i", path,
+                 "-vf", f"fps={_LOOP_SAMPLE_FPS},{scale}",
+                 "-frames:v", str(_LOOP_MAX_TAIL_FRAMES), tail_pattern],
+                shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            if ret.returncode != 0:
+                return None
+
+            best_diff = None
+            best_time = None
+            # Only loop at a matching frame near the END of the video: a match
+            # earlier would chop the clip short. Preferring the best frame that
+            # still lies in the final 10% (rather than taking the globally best
+            # tail match) keeps short looping wallpapers working -- a global
+            # best near the start of a short clip used to reject the clip even
+            # though a good near-end match existed.
+            near_end_thresh = duration * 0.9
+            for idx, tail_file in enumerate(
+                sorted(glob.glob(os.path.join(td, "tail_*.png")))
+            ):
+                try:
+                    cand = Image.open(tail_file).convert("L")
+                except OSError:
+                    continue
+                cand_time = tail_start + (idx / _LOOP_SAMPLE_FPS)
+                if cand_time < near_end_thresh:
+                    continue
+                diff = _mean_abs_diff(first, cand)
+                if best_diff is None or diff < best_diff:
+                    best_diff = diff
+                    best_time = cand_time
+
+            if best_diff is None or best_time is None:
+                return None
+            if best_diff > _LOOP_MATCH_MAX_DIFF:
+                return None
+            return best_time
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[Loop] clean-loop detection failed for {path}: {e}")
+        return None
+
+
+def _redirect_stderr_to_file():
+    """Redirect this process's stderr (fd 2) to a log file so VLC/FFmpeg's
+    native decoder errors -- which libvlc's log callback never receives -- are
+    observable to the watchdog. Python's own logs go through the persistent
+    file handler, so nothing is lost."""
+    global _STDERR_BACKUP_FD
+    try:
+        _STDERR_BACKUP_FD = os.dup(2)
+        fd = os.open(VLC_STDERR_LOG_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        os.dup2(fd, 2)
+        if fd > 2:
+            os.close(fd)
+    except OSError as e:  # noqa: BLE001
+        logger.debug(f"[HwWatch] could not redirect stderr: {e}")
+
+
+_STDERR_BACKUP_FD: int | None = None
+
+
+class HardwareDecodeWatchdog:
+    """Reads the VLC/FFmpeg stderr log for hardware-decode failures and decides
+    when to fall back to software decoding."""
+
+    def __init__(self):
+        self._offset = 0
+        self._count = 0
+
+    def poll(self):
+        """Read any new stderr lines and return the number of decode errors
+        seen since the previous call."""
+        try:
+            with open(VLC_STDERR_LOG_PATH, "r", encoding="utf-8", errors="replace") as f:
+                f.seek(self._offset)
+                chunk = f.read()
+                self._offset = f.tell()
+        except OSError:
+            return 0
+        if not chunk:
+            return 0
+        new = 0
+        for line in chunk.splitlines():
+            if any(marker in line for marker in _HW_FAILURE_MARKERS):
+                new += 1
+        self._count += new
+        return new
+
+
+#: Process-wide watchdog; VLCWidget feeds it, VideoPlayer evaluates it.
+_hw_watchdog = HardwareDecodeWatchdog()
+
 
 if is_wayland():
     if is_gnome():
@@ -138,6 +349,9 @@ class VLCWidget(Gtk.DrawingArea):
         # --aout=pulse: Force PulseAudio output. VLC's PipeWire audio-output
         #   plugin segfaults (pw_thread_loop_lock) when multiple instances are
         #   active, e.g. one per monitor. See the Flatpak, which uses Pulse too.
+        # Decide hardware vs software once so both the decoder and the thread
+        # count are consistent.
+        hw_enabled = hardware_accel_enabled(ConfigUtil().load())
         vlc_options = [
             "--no-disable-screensaver",
             "--aout=pulse",
@@ -150,30 +364,27 @@ class VLCWidget(Gtk.DrawingArea):
             # Preload a small amount of the stream to reduce decode stalls on
             # shuffle while keeping memory footprint low.
             "--network-caching=300",
-            # Constrain the decoder to one thread per stream. The threaded h264
-            # decoder can run out of reference frame buffers when several
-            # monitors decode at once (get_buffer()/thread_get_buffer failed),
-            # which leaves a monitor blank until the next shuffle. Single
-            # threaded decode uses far fewer buffers while keeping full quality.
-            "--avcodec-threads=1",
         ]
-        # Prefer hardware decoding (VA-API/VDPAU/NVDEC) with graceful software
-        # fallback: 'any' lets VLC use the best decoder available for the GPU,
-        # and automatically drops back to CPU decode when no working hardware
-        # path exists. This offloads decode from the CPU, lowering CPU usage
-        # and power draw on Intel/AMD/NVIDIA systems alike. Hardware decode is
-        # only reachable through the GL surface interop, so use the 'gl' video
-        # output while acceleration is enabled. The user can force pure
-        # software decode from the menu; that also falls back to VLC's most
-        # compatible (X11) video output.
-        if ConfigUtil().load().get(CONFIG_KEY_HARDWARE_ACCEL, True):
+        if hw_enabled:
+            # Hardware decoding: constrain the decoder to one thread per stream.
+            # The threaded h264 decoder can run out of reference frame buffers
+            # when several monitors decode at once (get_buffer()/thread_get_buffer
+            # failed), which leaves a monitor blank until the next shuffle.
+            # Single-threaded decode uses far fewer buffers, and hardware decode
+            # is fast enough not to need multiple threads.
             vlc_options += [
                 "--avcodec-hw=any",
                 "--vout=gl",
+                "--avcodec-threads=1",
             ]
         else:
+            # Software (CPU) decoding: use multiple threads so 1080p video --
+            # especially high-frame-rate clips -- decodes fast enough to keep up
+            # in real time. Single-threaded software decode drops frames on
+            # 1080p60 content, which looks like the wallpaper "snapping" forward.
             vlc_options += [
                 "--avcodec-hw=none",
+                "--avcodec-threads=0",
             ]
         self.instance = vlc.Instance(vlc_options)
         self.player = self.instance.media_player_new()
@@ -361,6 +572,25 @@ class VideoPlayer(BasePlayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Window/playback state must exist before ``reload_config()`` below:
+        # re-enabling the window-state handler there (or the handler it creates
+        # polling immediately) can call back into these attributes.
+        self.active_handler, self.window_handler = None, None
+        self.is_any_maximized, self.is_any_fullscreen = False, False
+        self.is_paused_by_user = False
+
+        # Shuffle support
+        self._shuffle_history = []
+        self._last_video_path = None
+        self._shuffle_timer_id = None
+        self._independent_seeded = False
+        self._hw_check_id = None
+        self._hw_fallback_done = False
+
+        # Clean-loop point cache: path -> loop_end_seconds (float) or None.
+        self._loop_points = {}
+        self._loop_computing = set()
+
         # Initialize X11 threads so VLC can use hardware decoding.
         # `libX11.so.6` fix for Fedora 33
         x11 = None
@@ -400,17 +630,6 @@ class VideoPlayer(BasePlayer):
                 self.original_wallpaper_uri = gso.get_string("picture-uri")
                 self.original_wallpaper_uri_dark = gso.get_string("picture-uri-dark")
 
-        # Handler should be created after everything initialized
-        self.active_handler, self.window_handler = None, None
-        self.is_any_maximized, self.is_any_fullscreen = False, False
-        self.is_paused_by_user = False
-
-        # Shuffle support
-        self._shuffle_history = []
-        self._last_video_path = None
-        self._shuffle_timer_id = None
-        self._independent_seeded = False
-
     def new_window(self, gdk_monitor):
         rect = gdk_monitor.get_geometry()
         window = PlayerWindow(
@@ -438,6 +657,68 @@ class VideoPlayer(BasePlayer):
     def do_activate(self):
         super().do_activate()
         self.data_source = self.config[CONFIG_KEY_DATA_SOURCE]
+        self._start_hw_watchdog()
+
+    def _start_hw_watchdog(self):
+        """Begin polling for hardware-decode failures while in "auto" mode and
+        hardware decoding is currently active."""
+        if self.config.get(CONFIG_KEY_HARDWARE_ACCEL, HARDWARE_ACCEL_AUTO) != HARDWARE_ACCEL_AUTO:
+            return
+        if not hardware_accel_enabled(self.config):
+            return
+        if self._hw_check_id is not None:
+            return
+        self._hw_check_id = GLib.timeout_add_seconds(2, self._check_hw_decode_health)
+        logger.debug("[HwWatch] watchdog polling started")
+
+    def _check_hw_decode_health(self):
+        """Called on the GLib main loop every couple of seconds. If the VLC
+        stderr log has accumulated enough strong decode failures, fall back to
+        software decoding and stop watching."""
+        if self._hw_fallback_done:
+            self._hw_check_id = None
+            return GLib.SOURCE_REMOVE
+
+        new = _hw_watchdog.poll()
+        if new >= _HW_FAILURE_TRIGGER:
+            logger.warning(
+                f"[HwWatch] {new} hardware-decode errors detected; "
+                "falling back to software decoding"
+            )
+            self._hw_fallback_done = True
+            self._hw_check_id = None
+            self._fallback_to_software_decode()
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
+
+    def _fallback_to_software_decode(self):
+        """Mark the current GPU as unstable ("auto" mode only) and ask the
+        server to re-create the player process with software decoding.
+
+        The user's hardware-acceleration preference is untouched; a separate
+        one-shot flag is set so the respawned player comes back in software
+        mode. The server call is dispatched on a background thread: the
+        server's respawn path makes a synchronous ``quit_player`` round-trip
+        back to this process, so this must not run on (and block) the player's
+        own main loop or the two processes deadlock.
+        """
+        try:
+            self.config = ConfigUtil().load()
+            self.config[CONFIG_KEY_HARDWARE_ACCEL_AUTOFALLBACK] = True
+            ConfigUtil().save(self.config)
+            logger.info("[HwWatch] set autofallback; respawning in software mode")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[HwWatch] failed to persist fallback: {e}")
+            return
+
+        def _apply():
+            try:
+                server = SessionBus().get(DBUS_NAME_SERVER)
+                server.apply_hardware_accel()
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"[HwWatch] failed to respawn player in software mode: {e}")
+
+        Thread(target=_apply, daemon=True).start()
 
     def _on_monitor_added(self, _, gdk_monitor, *args):
         super()._on_monitor_added(_, gdk_monitor, *args)
@@ -688,6 +969,15 @@ class VideoPlayer(BasePlayer):
         if is_static_image(source):
             media.add_option("image-duration=-1")
             media.add_option("no-audio")
+        elif self.config.get(CONFIG_KEY_AUTO_LOOP, True):
+            # Videos + auto-loop on: apply a clean-loop point (loop at the tail
+            # frame that matches the first frame) when one has been found, so the
+            # wallpaper loops seamlessly. If none is cached, kick off detection.
+            loop_end = self._loop_points.get(source)
+            if loop_end:
+                media.add_option(f"stop-time={loop_end:.3f}")
+            elif source not in self._loop_computing:
+                self._start_clean_loop_detection(source)
         # Prevent awful ear-rape with multiple instances.
         if not monitor.is_primary():
             media.add_option("no-audio")
@@ -696,6 +986,49 @@ class VideoPlayer(BasePlayer):
         # Stretch the wallpaper to fill this monitor's current size.
         rect = monitor.get_geometry()
         window.stretch_fit(rect.width, rect.height)
+
+    def _start_clean_loop_detection(self, source):
+        """Compute a clean-loop point for `source` in the background and, once
+        found, re-apply it to any window playing that source."""
+        if source in self._loop_computing:
+            return
+        self._loop_computing.add(source)
+
+        def _worker():
+            point = _find_video_loop_point(source)
+            GLib.idle_add(self._finish_clean_loop_detection, source, point)
+
+        Thread(target=_worker, daemon=True).start()
+
+    def _finish_clean_loop_detection(self, source, point):
+        self._loop_computing.discard(source)
+        self._loop_points[source] = point
+        if not point:
+            return False
+        logger.info(f"[Loop] clean loop point for {os.path.basename(source)}: {point:.2f}s")
+        # Re-apply so the stop-time takes effect, but keep each window's playback
+        # position so the detection pass does not visibly restart the wallpaper.
+        for monitor, window in self.windows.items():
+            if window is None or not self._window_source_matches(window, monitor, source):
+                continue
+            try:
+                position = window.get_position()
+            except Exception:  # noqa: BLE001
+                position = 0.0
+            self._apply_source_to_window(monitor, window)
+            try:
+                if position > 0.0:
+                    window.set_position(min(position, 0.99))
+            except Exception:  # noqa: BLE001
+                pass
+        return False
+
+    def _window_source_matches(self, window, monitor, source):
+        data_source = self.config.get(CONFIG_KEY_DATA_SOURCE) or {}
+        if not isinstance(data_source, dict):
+            return False
+        cur = data_source.get(monitor.get_model()) or data_source.get("Default")
+        return cur == source
 
     @data_source.setter
     def data_source(self, data_source):
@@ -1164,6 +1497,7 @@ class VideoPlayer(BasePlayer):
 
 
 def main():
+    _redirect_stderr_to_file()
     bus = SessionBus()
     app = VideoPlayer()
     try:

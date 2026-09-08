@@ -99,10 +99,12 @@ keeping CPU and power usage low:
   - **NVIDIA + Wayland** → VA-API when the host ships
     [`nvidia-vaapi-driver`](https://github.com/elFarto/nvidia-vaapi-driver),
     otherwise it uses CPU decoding automatically.
-  - If a driver is unstable, toggle **Hardware acceleration** off in the
-    hamburger menu (applies on the next wallpaper change).
-- **Automatic fallback.** If no working hardware decoder is found, playback
-  seamlessly continues using the CPU — one wallpaper for every machine.
+  - If a driver is unstable, set **Hardware acceleration** to *Auto*
+    (default) so it automatically falls back to CPU decoding when the GPU
+    decoder glitches, or to *Off* to force software decoding.
+- **Automatic fallback.** In *Auto* mode, if the GPU decoder fails at runtime
+  (`get_buffer() failed` / `no frame!` on some drivers), playback seamlessly
+  switches to the CPU — one wallpaper for every machine, no user action.
 - **Sensible defaults.** Playback pauses automatically when a window is
   maximized or a fullscreen app is open, so the wallpaper doesn't burn CPU/GPU
   while you're working. On GNOME Wayland this uses a tiny bundled GNOME Shell
