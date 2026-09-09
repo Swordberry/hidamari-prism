@@ -1,0 +1,32 @@
+# Maintainer: Swordberry <swordberry@users.noreply.github.com>
+pkgname=hidamari-prism
+pkgver=1.0.1
+pkgrel=1
+pkgdesc="Video and image wallpaper for Linux, written in Python (Hidamari fork)"
+arch=('any')
+url='https://github.com/Swordberry/hidamari-prism'
+license=('GPL-3.0-or-later')
+depends=(
+  'python'
+  'python-gobject'
+  'python-pillow'
+  'python-pydbus'                    # AUR
+  'python-requests'
+  'python-setproctitle'              # AUR
+  'python-vlc'                       # AUR
+  'yt-dlp'
+  'webkit2gtk-4.1'
+)
+makedepends=('desktop-file-utils' 'meson' 'ninja' 'glib2')
+
+source=("https://github.com/Swordberry/hidamari-prism/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('1765212ee58263129113a869b51e62a6025c5ca101e0b0209465439150e90087')
+
+build() {
+  arch-meson "${pkgname}" build
+  meson compile -C build
+}
+
+package() {
+  DESTDIR="${pkgdir}" meson install -C build
+}
