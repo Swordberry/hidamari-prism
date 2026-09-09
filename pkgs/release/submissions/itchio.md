@@ -48,8 +48,9 @@ your wallpaper, and it does all of it while sipping CPU and power.
 
 ### Gallery
 
-- Use `res/demo.mp4` (or the original webm in `/home/swordberry/Videos/Screencasts/`)
-- Use `res/screenshot-1.png` (2236x1434)
+- **Icon / header**: `res/hidamari_prism_icon.png` (512x512)
+- Video: use `res/demo.mp4` (or the original webm in `/home/swordberry/Videos/Screencasts/`)
+- Screenshot: use `res/screenshot-1.png` (2236x1434)
 
 ## Tags
 

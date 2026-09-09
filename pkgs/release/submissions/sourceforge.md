@@ -24,8 +24,10 @@ window and are not recommended.
    `https://github.com/Swordberry/hidamari-prism/releases/tag/v1.0.1`
 2. Source tarball:
    `https://github.com/Swordberry/hidamari-prism/archive/refs/tags/v1.0.1.tar.gz`
-3. Screenshot: `res/screenshot-1.png`
-4. Demo video: `res/demo.mp4`
+3. **Project/upload icon**: `res/hidamari_prism_icon.png` (512x512) — same
+   artwork as the GitHub repo icon.
+4. Screenshot: `res/screenshot-1.png`
+5. Demo video: `res/demo.mp4`
 
 ## Release notes to paste
 

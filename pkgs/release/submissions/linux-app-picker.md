@@ -28,3 +28,5 @@ Wayland desktops are not (renders as a plain window).
 
 Screenshots: `res/screenshot-1.png` (2236x1434).
 Demo video: `res/demo.mp4`.
+Icon: `res/hidamari_prism_icon.png` (512x512) — use the same icon/artwork as the
+GitHub repo.

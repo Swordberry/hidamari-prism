@@ -22,5 +22,6 @@ vlc, python
 
 ## Media
 
+- Icon: `res/hidamari_prism_icon.png` (512x512)
 - Screenshot: `res/screenshot-1.png` (2236x1434)
 - Video: `res/demo.mp4`
