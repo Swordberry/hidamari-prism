@@ -12,6 +12,9 @@
 Turn your Linux desktop into a living, breathing place: video, stream, animated
 webpage, or static-image wallpaper that sips CPU and power.
 
+Compatibility: X11 (any desktop) and GNOME Wayland are fully supported; other
+Wayland desktops are not (see the project README).
+
 ## Tags
 
 wallpaper, video wallpaper, live wallpaper, gtk, gnome, wayland, plymouth,

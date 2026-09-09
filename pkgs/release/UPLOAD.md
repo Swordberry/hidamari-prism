@@ -18,9 +18,20 @@ Ready-to-use text for each destination lives in this folder:
 | AUR (Arch User Repository) | `PKGBUILD` | needs `makepkg` test + `git push` to `ssh://aur@aur.archlinux.org/hidamari-prism.git` with your AUR SSH key |
 | Itch.io | `submissions/itchio.md` | needs `butler` token |
 | AlternativeTo | `submissions/alternativeto.md` | web form |
-| lin-apps (Linux Apps) | `submissions/linapps.md` | web form |
 | Linux App Picker | `submissions/linux-app-picker.md` | web form |
 | SourceForge | `submissions/sourceforge.md` | web upload / new release |
+
+> **Skipped: linux-apps.com (KDE OCS store).** Its audience is mostly Plasma
+> Wayland users, where this app cannot attach as a real wallpaper (see
+> `docs/` notes); posting there risks false "broken" ratings. Only post where
+> the program can actually run as intended.
+
+## Compatibility (use this wording on every listing)
+
+- **X11 (any desktop)** — full support, incl. pause/mute on maximize.
+- **GNOME Wayland** — full support via the opt-in GNOME Shell extension.
+- **KDE Plasma / Sway / other Wayland** — not supported as wallpaper
+  (renders as a plain window); pause/mute-on-maximize is a no-op there.
 
 ## quick checks
 

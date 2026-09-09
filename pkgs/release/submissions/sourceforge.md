@@ -8,6 +8,10 @@ Animated wallpaper for Linux. Play videos, live streams, webpages, or images as
 your desktop background with low CPU/power usage; hardware acceleration with
 automatic fallback; playlists; GNOME Wayland support. GPL-3.0.
 
+Compatibility: X11 (any desktop) and GNOME Wayland are fully supported; other
+Wayland desktops (e.g. KDE Plasma Wayland) render the wallpaper as a plain
+window and are not recommended.
+
 **Trove categories:**
 - OS: Linux
 - Topic: Desktop / Desktop Environment / Wallpapers

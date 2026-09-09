@@ -32,6 +32,13 @@ your wallpaper, and it does all of it while sipping CPU and power.
 - **Clean looping** — playlists and videos loop predictably at the seam; no
   experimental smoothing stack.
 
+### Compatibility
+
+- X11 (any desktop) — full support, incl. pause/mute on maximize.
+- GNOME Wayland — full support via the opt-in GNOME Shell extension.
+- KDE Plasma / Sway / other Wayland — not supported as wallpaper (renders as a
+  plain window); pause/mute-on-maximize is a no-op there.
+
 ### Install
 
 - Flatpak bundle: attach `hidamari_prism-playlists.flatpak` from the GitHub

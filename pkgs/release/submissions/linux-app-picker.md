@@ -23,5 +23,8 @@ with the help of AI. Features include:
 - Pause & mute when a window is maximized (X11 + GNOME Wayland)
 - Multi-monitor support with per-monitor decoders
 
+Compatibility: X11 (any desktop) and GNOME Wayland fully supported; other
+Wayland desktops are not (renders as a plain window).
+
 Screenshots: `res/screenshot-1.png` (2236x1434).
 Demo video: `res/demo.mp4`.
