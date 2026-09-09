@@ -526,6 +526,23 @@ Wallpapers located in the Hidamari Prism folder (videos and images)</property>
               </packing>
             </child>
             <child>
+              <object class="GtkSearchEntry" id="WallpaperSearch">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+                <property name="halign">end</property>
+                <property name="valign">center</property>
+                <property name="width-request">320</property>
+                <property name="placeholder-text" translatable="yes">Search wallpapers</property>
+                <signal name="search-changed" handler="on_wallpaper_search_changed" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkScrolledWindow">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
@@ -545,7 +562,7 @@ Wallpapers located in the Hidamari Prism folder (videos and images)</property>
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="position">2</property>
               </packing>
             </child>
             <child>
@@ -591,7 +608,7 @@ Wallpapers located in the Hidamari Prism folder (videos and images)</property>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
                 <property name="pack-type">end</property>
-                <property name="position">2</property>
+                <property name="position">3</property>
               </packing>
             </child>
           </object>
@@ -622,14 +639,41 @@ Organize your wallpapers into playlists</property>
               </packing>
             </child>
             <child>
+              <object class="GtkSearchEntry" id="PlaylistSearch">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+                <property name="halign">end</property>
+                <property name="valign">center</property>
+                <property name="width-request">320</property>
+                <property name="placeholder-text" translatable="yes">Search playlist</property>
+                <signal name="search-changed" handler="on_playlist_search_changed" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkBox">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
                 <property name="spacing">8</property>
                 <child>
-                  <object class="GtkComboBoxText" id="PlaylistCombo">
+                  <object class="GtkComboBox" id="PlaylistCombo">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
+                    <property name="width-request">200</property>
+                    <property name="popup-fixed-width">True</property>
+                    <child>
+                      <object class="GtkCellRendererText">
+                        <property name="ellipsize">end</property>
+                      </object>
+                      <attributes>
+                        <attribute name="text">1</attribute>
+                      </attributes>
+                    </child>
                     <signal name="changed" handler="on_playlist_combo_changed" swapped="no"/>
                   </object>
                   <packing>
@@ -684,7 +728,7 @@ Organize your wallpapers into playlists</property>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="position">2</property>
               </packing>
             </child>
             <child>
@@ -774,7 +818,7 @@ Organize your wallpapers into playlists</property>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">2</property>
+                <property name="position">3</property>
               </packing>
             </child>
             <child>
@@ -799,7 +843,7 @@ Organize your wallpapers into playlists</property>
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">3</property>
+                <property name="position">4</property>
               </packing>
             </child>
             <child>
@@ -845,7 +889,7 @@ Organize your wallpapers into playlists</property>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
                 <property name="pack-type">end</property>
-                <property name="position">4</property>
+                <property name="position">5</property>
               </packing>
             </child>
           </object>

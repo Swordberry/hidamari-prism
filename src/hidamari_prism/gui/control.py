@@ -98,6 +98,8 @@ class ControlPanel(Gtk.Application):
             "on_web_page_activate": self.on_web_page_activate,
             "on_blur_radius_changed": self.on_blur_radius_changed,
             "on_playlist_combo_changed": self.on_playlist_combo_changed,
+            "on_wallpaper_search_changed": self.on_wallpaper_search_changed,
+            "on_playlist_search_changed": self.on_playlist_search_changed,
             "on_playlist_new": self.on_playlist_new,
             "on_playlist_rename": self.on_playlist_rename,
             "on_playlist_delete": self.on_playlist_delete,
@@ -120,6 +122,8 @@ class ControlPanel(Gtk.Application):
         self.video_paths = None
         self.all_key = "all"
         self._playlist_refreshing = False
+        self._all_video_paths = []
+        self._last_wallpaper_query = None
 
         self.is_autostart = os.path.isfile(AUTOSTART_DESKTOP_PATH)
 
@@ -261,6 +265,8 @@ class ControlPanel(Gtk.Application):
             self.builder.get_object("LabelBlurRadius").set_visible(False)
             self.builder.get_object("SpinBlurRadius").set_visible(False)
 
+        self.icon_view = self.builder.get_object("IconView")
+        self.icon_view.connect("button-press-event", self.on_icon_view_button_press)
         self._reload_all_widgets()
         self._reload_playlists()
 
@@ -653,11 +659,14 @@ class ControlPanel(Gtk.Application):
 
     def _reload_playlists(self, *_):
         playlists, shuffle = self._playlists_state()
-        combo: Gtk.ComboBoxText = self.builder.get_object("PlaylistCombo")
+        combo: Gtk.ComboBox = self.builder.get_object("PlaylistCombo")
         self._signal_block(combo, self.on_playlist_combo_changed)
-        combo.remove_all()
+        # Model columns: 0=playlist name (id), 1=display text (ellipsized).
+        store = Gtk.ListStore(str, str)
         for name in playlists.keys():
-            combo.append_text(name)
+            store.append([name, name])
+        combo.set_model(store)
+        combo.set_id_column(0)
         active = shuffle.get(CONFIG_KEY_SHUFFLE_ACTIVE, "")
         if active in playlists:
             combo.set_active_id(active)
@@ -667,8 +676,8 @@ class ControlPanel(Gtk.Application):
         self._refresh_playlist_tab()
 
     def _current_playlist(self):
-        combo: Gtk.ComboBoxText = self.builder.get_object("PlaylistCombo")
-        name = combo.get_active_text()
+        combo: Gtk.ComboBox = self.builder.get_object("PlaylistCombo")
+        name = combo.get_active_id()
         if not name:
             return None, None
         playlists, _shuffle = self._playlists_state()
@@ -688,6 +697,9 @@ class ControlPanel(Gtk.Application):
         name, videos = self._current_playlist()
 
         # Populate the thumbnail grid. Columns: 0=pixbuf, 1=basename(text), 2=full path.
+        query = self._search_query("PlaylistSearch")
+        if query:
+            videos = [v for v in (videos or []) if query in os.path.basename(v).lower()]
         store = Gtk.ListStore(GdkPixbuf.Pixbuf, str, str)
         icon_view: Gtk.IconView = self.builder.get_object("PlaylistIconView")
         icon_view.set_model(store)
@@ -748,7 +760,7 @@ class ControlPanel(Gtk.Application):
         if name not in playlists:
             playlists[name] = []
         self._reload_playlists()
-        combo: Gtk.ComboBoxText = self.builder.get_object("PlaylistCombo")
+        combo: Gtk.ComboBox = self.builder.get_object("PlaylistCombo")
         combo.set_active_id(name)
 
     def on_playlist_rename(self, *_args):
@@ -778,7 +790,7 @@ class ControlPanel(Gtk.Application):
             shuffle[CONFIG_KEY_SHUFFLE_ACTIVE] = new_name
         self._save_config_delay()
         self._reload_playlists()
-        combo: Gtk.ComboBoxText = self.builder.get_object("PlaylistCombo")
+        combo: Gtk.ComboBox = self.builder.get_object("PlaylistCombo")
         combo.set_active_id(new_name)
 
     def on_playlist_delete(self, *_args):
@@ -792,10 +804,8 @@ class ControlPanel(Gtk.Application):
         self._save_config_delay()
         self._reload_playlists()
 
-    def on_playlist_add_videos(self, *_args):
-        name, videos = self._current_playlist()
-        if not name:
-            return
+    def _pick_wallpaper_files(self):
+        """Open the media file chooser; return the selected paths ([] if cancelled)."""
         dialog = Gtk.FileChooserDialog(
             title=_("Add Wallpapers"),
             transient_for=self.window,
@@ -821,6 +831,13 @@ class ControlPanel(Gtk.Application):
         response = dialog.run()
         paths = dialog.get_filenames() if response == Gtk.ResponseType.OK else []
         dialog.destroy()
+        return paths
+
+    def on_playlist_add_videos(self, *_args):
+        name, videos = self._current_playlist()
+        if not name:
+            return
+        paths = self._pick_wallpaper_files()
         playlists, _shuffle = self._playlists_state()
         existing = set(playlists.get(name, []))
         for path in paths:
@@ -1069,13 +1086,24 @@ class ControlPanel(Gtk.Application):
         self._signal_unblock(combo, self.on_hardware_accel_combo_changed)
 
     def _reload_icon_view(self, *_):
-        self.video_paths = get_video_paths()
+        self._all_video_paths = get_video_paths()
+        self._build_icon_view()
+
+    def _build_icon_view(self):
+        query = self._search_query("WallpaperSearch")
+        if query == self._last_wallpaper_query and self.icon_view is not None:
+            return
+        self._last_wallpaper_query = query
+        # Keep the filtered list parallel to the visible thumbnail rows, since
+        # `on_set_as` maps selected row indices straight onto this list.
+        self.video_paths = [
+            path for path in self._all_video_paths if query in os.path.basename(path).lower()
+        ]
         list_store = Gtk.ListStore(GdkPixbuf.Pixbuf, str)
         self.icon_view: Gtk.IconView = self.builder.get_object("IconView")
         self.icon_view.set_pixbuf_column(0)
         self.icon_view.set_text_column(1)
         self.icon_view.set_model(list_store)
-        self.icon_view.connect("button-press-event", self.on_icon_view_button_press)
         for idx, video_path in enumerate(self.video_paths):
             # Show a preview thumbnail for videos; static images get their own
             # thumbnail and fall back to a generic image icon.
@@ -1085,6 +1113,19 @@ class ControlPanel(Gtk.Application):
             thread = threading.Thread(target=get_thumbnail, args=(video_path, list_store, idx))
             thread.daemon = True
             thread.start()
+
+    def on_wallpaper_search_changed(self, *_):
+        self._build_icon_view()
+
+    def on_playlist_search_changed(self, *_):
+        self._refresh_playlist_tab()
+
+    def _search_query(self, widget_id):
+        """Return lower-cased, trimmed text of a search entry (or "")."""
+        widget = self.builder.get_object(widget_id)
+        if widget is None:
+            return ""
+        return widget.get_text().strip().lower()
 
 
 def _find_gresource(pkgdatadir):
