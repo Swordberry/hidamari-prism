@@ -30,15 +30,13 @@
 
   <polyline points="52,58 192,236" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
 
-  <polyline points="192,236 344,206" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-
   <g stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="344,206 472,138" fill="none" stroke="#ff5555" stroke-width="17" opacity="0.95"/>
-    <polyline points="344,206 472,158" fill="none" stroke="#ff9f43" stroke-width="17" opacity="0.95"/>
-    <polyline points="344,206 472,178" fill="none" stroke="#ffd43b" stroke-width="17" opacity="0.95"/>
-    <polyline points="344,206 472,198" fill="none" stroke="#51cf66" stroke-width="17" opacity="0.95"/>
-    <polyline points="344,206 472,218" fill="none" stroke="#4dabf7" stroke-width="17" opacity="0.95"/>
-    <polyline points="344,206 472,238" fill="none" stroke="#845ef7" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,68" fill="none" stroke="#ff5555" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,118" fill="none" stroke="#ff9f43" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,167" fill="none" stroke="#ffd43b" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,216" fill="none" stroke="#51cf66" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,266" fill="none" stroke="#4dabf7" stroke-width="17" opacity="0.95"/>
+    <polyline points="192,236 508,315" fill="none" stroke="#845ef7" stroke-width="17" opacity="0.95"/>
   </g>
 
   <polygon points="250,108 133,372 396,372" fill="url(#faceGrad)" stroke="#0e7db3" stroke-width="14" stroke-linejoin="round"/>
