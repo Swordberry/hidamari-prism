@@ -1035,13 +1035,19 @@ class ControlPanel(Gtk.Application):
                 pass
 
     def on_quit(self, *_):
+        # Fire-and-forget: the server terminates this GUI process, the player
+        # and the systray itself. The request must not run on the GTK main
+        # thread -- server.quit() returns only after it has SIGTERM'd this very
+        # process, so a synchronous call would block the main loop forever
+        # instead of letting the shutdown land.
         if self.server is not None:
-            try:
-                self.server.quit()
-            except GLib.Error:
-                # Ignore NoReply error
-                pass
-        self.quit()
+            threading.Thread(target=self._request_server_quit, daemon=True).start()
+
+    def _request_server_quit(self):
+        try:
+            self.server.quit()
+        except GLib.Error:
+            pass
 
     def _reload_all_widgets(self):
         self._reload_icon_view()

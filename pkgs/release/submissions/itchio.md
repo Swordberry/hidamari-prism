@@ -18,7 +18,11 @@ your wallpaper, and it does all of it while sipping CPU and power.
 
 ### Highlights
 
-- **Static image wallpapers** — zero rendering overhead, just a beautiful desktop.
+- **Static image wallpapers (GNOME)** — zero rendering overhead, just a beautiful desktop.
+- **Per-monitor pause & mute** — when a window is maximized, only that screen's
+  wallpaper pauses; your other monitors keep animating.
+- **Searchable wallpapers & playlists** — find a wallpaper instantly; the
+  playlist dropdown tracks the window width instead of overflowing.
 - **Wallpaper playlists** — bundle favourites or add an entire folder at once.
   With shuffle off, the playlist plays in order and loops perfectly.
 - **Pause & mute when maximized** — the wallpaper pauses while you work, so it
@@ -34,15 +38,26 @@ your wallpaper, and it does all of it while sipping CPU and power.
 
 ### Compatibility
 
-- X11 (any desktop) — full support, incl. pause/mute on maximize.
-- GNOME Wayland — full support via the opt-in GNOME Shell extension.
-- KDE Plasma / Sway / other Wayland — not supported as wallpaper (renders as a
-  plain window); pause/mute-on-maximize is a no-op there.
+Hidamari Prism is made for **Linux** and ships as a Flatpak, so it runs on any
+distribution that supports Flatpak — Fedora, Ubuntu, Arch, openSUSE, and just
+about anything else.
+
+- **X11 — fully supported on every desktop** (GNOME, KDE Plasma, XFCE, Cinnamon,
+  and any other window manager). Video, stream, and web-page wallpapers work
+  everywhere, and pause/mute-when-maximized works on any X11 desktop through the
+  window manager. Static-image wallpapers and restoring the original wallpaper
+  are GNOME-only.
+- **GNOME on Wayland — fully supported**, including pause/mute when maximized
+  through a tiny opt-in GNOME Shell extension (installed with your confirmation).
+- **KDE Plasma, Sway, and other Wayland compositors** — video, stream, and
+  web-page wallpapers play in a plain window; the window-state toggles and
+  static-image wallpapers are no-ops there. Run an X11 session for the full
+  experience.
 
 ### Install
 
 - Flatpak bundle: attach `hidamari_prism-playlists.flatpak` from the GitHub
-  release v1.0.1.
+  release v1.0.3.
 - `flatpak install --user ./hidamari_prism-playlists.flatpak && flatpak run io.github.swordberry.Hidamari_Prism`
 - AUR: `paru -S hidamari-prism`
 

@@ -14,9 +14,11 @@
     <p>Hidamari Prism 日溜まり【ひだまり】(n) sunny spot; exposure to the sun</p>
     <p>Play videos, animated webpages, or static images as your desktop wallpaper, with a focus on low power usage and broad hardware and desktop-environment compatibility.</p>
     <p>This project is a fork of <em>Hidamari</em> by Jeff Shee, and is developed with the help of AI. The original project lives at <em>github.com/jeffshee/hidamari</em>. Both the original code and this fork are licensed under GPL-3.0-or-later.</p>
+    <p>Compatibility: X11 is fully supported on every desktop — video, stream, and web-page wallpapers, plus pause/mute when maximized. GNOME on Wayland is fully supported via a tiny opt-in GNOME Shell extension. On KDE Plasma, Sway, and other Wayland compositors the wallpaper plays in a plain window and the window-state toggles are disabled, so an X11 session gives the full experience. Static-image wallpapers are GNOME-only.</p>
     <p>New in the Hidamari Prism fork:</p>
     <ul>
-      <li>Static image wallpapers — zero rendering or decoding overhead</li>
+      <li>Static image wallpapers (GNOME) — zero rendering or decoding overhead</li>
+      <li>Searchable wallpapers &amp; playlists</li>
       <li>Wallpaper playlists, including adding an entire folder at once</li>
       <li>Ordered (sequential) playlist playback when shuffle is turned off</li>
       <li>Pause and mute the wallpaper automatically when a window is maximized</li>
@@ -27,6 +29,25 @@
     <p>Similar functionality to Xwinwrap + mpv or Komorebi, with more features.</p>
   </description>
   <releases>
+    <release version="1.0.3" date="2026-09-10" type="stable">
+      <description>
+        <p>Hidamari Prism v1.0.3</p>
+        <ul>
+          <li>Per-monitor pause &amp; mute when maximized — only the wallpaper behind a maximized/fullscreen window pauses; the other screens keep animating (X11) and correctly follow a window dragged across monitors (GNOME Wayland)</li>
+          <li>Fixed the Quit button: clicking it now cleanly shuts down the server, players, systray, and GUI</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.2" date="2026-09-09" type="stable">
+      <description>
+        <p>Hidamari Prism v1.0.2</p>
+        <ul>
+          <li>Searchable wallpapers &amp; playlists</li>
+          <li>Playlist dropdown tracks the window width (long names ellipsize)</li>
+          <li>Promotion refresh (README demo video and screenshot)</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0" date="2026-09-05" type="stable">
       <description>
         <p>Hidamari Prism fork 1.0</p>

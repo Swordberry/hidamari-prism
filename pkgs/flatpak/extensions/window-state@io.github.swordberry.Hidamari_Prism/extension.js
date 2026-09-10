@@ -13,8 +13,11 @@
  *
  *   ~/.var/app/io.github.swordberry.Hidamari_Prism/window_state
  *
- *   m=0|1   any (non-wallpaper) window on the active workspace is maximized
- *   f=0|1   any (non-wallpaper) window on the active workspace is fullscreen
+ *   eDP-1=m          one "connector=state" line per monitor that has a
+ *   HDMI-A-1=f       maximized (m) or fullscreen (f) window on the active
+ *                    workspace; monitors without a blocking window are simply
+ *                    absent. The app pauses only the wallpapers on the listed
+ *                    monitors, so the other screens keep animating.
  *
  * It polls once per second, which is far cheaper than the per-frame decode
  * work it lets the wallpaper skip while covered.
@@ -24,6 +27,7 @@
  * which mutter 46 removed).
  */
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -50,9 +54,25 @@ export default class HidamariWindowStateExtension extends Extension {
         } catch (e) { }
     }
 
+    _connectorForMonitor(monitorIndex) {
+        try {
+            const mm = Meta.MonitorManager.get();
+            try {
+                const spec = mm.get_monitor_spec(monitorIndex);
+                if (spec && spec.connector)
+                    return spec.connector;
+            } catch (e) { }
+            try {
+                const info = mm.get_monitor_infos()[monitorIndex];
+                if (info && info.connector)
+                    return info.connector;
+            } catch (e) { }
+        } catch (e) { }
+        return null;
+    }
+
     _compute() {
-        let anyMax = false;
-        let anyFs = false;
+        const busy = new Map();
 
         let ws = null;
         try {
@@ -69,20 +89,30 @@ export default class HidamariWindowStateExtension extends Extension {
                     continue;
                 if (!this._isOnActiveWorkspace(w, ws))
                     continue;
+                let flags = '';
                 try {
                     if (w.is_fullscreen())
-                        anyFs = true;
+                        flags += 'f';
                 } catch (e) { }
                 try {
                     if (this._isMaximized(w))
-                        anyMax = true;
+                        flags += 'm';
+                } catch (e) { }
+                if (!flags)
+                    continue;
+                try {
+                    const conn = this._connectorForMonitor(w.get_monitor());
+                    if (!conn)
+                        continue;
+                    const merged = busy.has(conn) ? busy.get(conn) + flags : flags;
+                    busy.set(conn, [...new Set(merged.split(''))].join('+'));
                 } catch (e) { }
             }
         } catch (e) {
             log(`[HidamariWindowState] compute: ${e}`);
         }
 
-        this._writeState(anyMax, anyFs);
+        this._writeState(busy);
     }
 
     _isWallpaperWindow(w) {
@@ -96,6 +126,21 @@ export default class HidamariWindowStateExtension extends Extension {
                 return true;
         } catch (e) { }
         return false;
+    }
+
+    _writeState(busy) {
+        try {
+            GLib.mkdir_with_parents(APP_DIR, 0o755);
+            let content = '';
+            for (const [conn, flags] of busy)
+                content += `${conn}=${flags}\n`;
+            // GLib.file_set_contents writes atomically and needs no hand-rolled
+            // stream plumbing (Gio.DataOutputStream's constructor takes a
+            // param-spec first, which is easy to get wrong with replace()).
+            GLib.file_set_contents(STATE_PATH, content);
+        } catch (e) {
+            log(`[HidamariWindowState] writeState: ${e}`);
+        }
     }
 
     _isOnActiveWorkspace(w, ws) {
@@ -117,19 +162,6 @@ export default class HidamariWindowStateExtension extends Extension {
             return (w.get_maximized() || 0) === 3;
         } catch (e) {
             return false;
-        }
-    }
-
-    _writeState(max, fs) {
-        try {
-            GLib.mkdir_with_parents(APP_DIR, 0o755);
-            const content = `m=${max ? 1 : 0}\nf=${fs ? 1 : 0}\n`;
-            // GLib.file_set_contents writes atomically and needs no hand-rolled
-            // stream plumbing (Gio.DataOutputStream's constructor takes a
-            // param-spec first, which is easy to get wrong with replace()).
-            GLib.file_set_contents(STATE_PATH, content);
-        } catch (e) {
-            log(`[HidamariWindowState] writeState: ${e}`);
         }
     }
 }

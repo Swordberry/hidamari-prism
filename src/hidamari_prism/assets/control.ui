@@ -74,9 +74,9 @@ All contributors to Hidamari https://github.com/jeffshee/hidamari/graphs/contrib
         <property name="margin-start">8</property>
         <property name="margin-end">8</property>
         <property name="margin-top">4</property>
-        <property name="margin-bottom">26</property>
+        <property name="margin-bottom">6</property>
         <property name="orientation">vertical</property>
-        <property name="spacing">6</property>
+        <property name="spacing">4</property>
         <child>
           <object class="GtkLabel">
             <property name="visible">True</property>
@@ -374,7 +374,7 @@ All contributors to Hidamari https://github.com/jeffshee/hidamari/graphs/contrib
             <property name="fill">True</property>
             <property name="position">16</property>
           </packing>
-</child>
+        </child>
       </object>
     </child>
   </object>

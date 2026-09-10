@@ -314,13 +314,48 @@ class EndSessionHandler:
         self.on_end_session()
 
 
+WINDOW_STATE_ALL_MONITORS = "__all__"
+
+
+def _best_monitor_for_rect(rects, x, y, w, h):
+    """Return the monitor model whose geometry overlaps the given window rect
+    the most; falls back to the monitor whose center is nearest."""
+    cx, cy = x + w / 2, y + h / 2
+    best_overlap = -1
+    best_model_overlap = None
+    best_dist = float("inf")
+    best_model_dist = None
+    for model, (mx, my, mw, mh) in rects.items():
+        ox = max(0, min(x + w, mx + mw) - max(x, mx))
+        oy = max(0, min(y + h, my + mh) - max(y, my))
+        area = ox * oy
+        if area > best_overlap:
+            best_overlap = area
+            best_model_overlap = model
+        dcx, dcy = mx + mw / 2, my + mh / 2
+        dist = (cx - dcx) ** 2 + (cy - dcy) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best_model_dist = model
+    if best_overlap > 0:
+        return best_model_overlap
+    return best_model_dist
+
+
 class WindowHandler:
     """
     Handler for monitoring window events (maximized and fullscreen mode) for X11
+
+    Reports which monitors currently have a maximized or fullscreen window, so
+    only the wallpapers behind that window pause (the other monitors keep
+    playing). ``get_monitor_rects`` is a callable returning
+    ``{model: (x, y, w, h)}`` geometry for every monitor; it is used to
+    attribute a blocking window to its monitor.
     """
 
-    def __init__(self, on_window_state_changed: callable):
+    def __init__(self, on_window_state_changed: callable, get_monitor_rects=None):
         self.on_window_state_changed = on_window_state_changed
+        self.get_monitor_rects = get_monitor_rects
         self.screen = Wnck.Screen.get_default()
         self.screen.force_update()
 
@@ -355,32 +390,40 @@ class WindowHandler:
     def window_opened(self, screen, window, _):
         self._connect_window(window)
 
-    def eval(self, *args):
-        # TODO: #28 (Wallpaper stops animating on other monitor when app maximized on other)
-        is_changed = False
-
-        is_any_maximized, is_any_fullscreen = False, False
+    def _busy_monitors(self):
+        busy = set()
+        rects = self.get_monitor_rects() if self.get_monitor_rects else {}
+        can_attribute = bool(rects)
         for window in self.screen.get_windows():
             base_state = not Wnck.Window.is_minimized(window) and Wnck.Window.is_on_workspace(
                 window, self.screen.get_active_workspace()
             )
-            is_maximized = Wnck.Window.is_maximized(window) and base_state
-            is_fullscreen = Wnck.Window.is_fullscreen(window) and base_state
-            if is_maximized is True:
-                is_any_maximized = True
-            if is_fullscreen is True:
-                is_any_fullscreen = True
+            blocked = (
+                Wnck.Window.is_maximized(window) or Wnck.Window.is_fullscreen(window)
+            ) and base_state
+            if not blocked:
+                continue
+            if can_attribute:
+                try:
+                    geom = window.get_geometry()
+                    x, y, w, h = geom
+                    model = _best_monitor_for_rect(rects, x, y, w, h)
+                except Exception:  # noqa: BLE001
+                    model = None
+                if model:
+                    busy.add(model)
+                else:
+                    busy.add(WINDOW_STATE_ALL_MONITORS)
+            else:
+                busy.add(WINDOW_STATE_ALL_MONITORS)
+        return busy
 
-        cur_state = {"is_any_maximized": is_any_maximized, "is_any_fullscreen": is_any_fullscreen}
+    def eval(self, *args):
+        cur_state = {"busy_monitors": self._busy_monitors()}
         if self.prev_state is None or self.prev_state != cur_state:
-            is_changed = True
             self.prev_state = cur_state
-
-        if is_changed:
-            self.on_window_state_changed(
-                {"is_any_maximized": is_any_maximized, "is_any_fullscreen": is_any_fullscreen}
-            )
-            logger.debug(f"[WindowHandler] {cur_state}")
+            self.on_window_state_changed(cur_state)
+            logger.debug(f"[WindowHandler] busy monitors: {sorted(cur_state['busy_monitors'])}")
 
     def cleanup(self):
         """Cleanup all signal handlers to prevent memory leaks"""
@@ -416,18 +459,32 @@ def _gnome_extension_state_path():
 
 def wayland_window_state():
     """Parse the state file mirror written by the bundled GNOME Shell
-    extension, or None if it is not available (extension disabled/absent)."""
+    extension, or None if it is not available (extension disabled/absent).
+
+    The file lists one monitor per line, keyed by monitor connector name (the
+    same names Gdk reports via ``Monitor.get_model()``)::
+
+        eDP-1=m
+        HDMI-A-1=f
+
+    where the value describes the blocking window on that monitor (``m``
+    maximized, ``f`` fullscreen, ``m+f`` both). The app pauses only the
+    wallpaper(s) on monitors that appear here, so a maximized window on one
+    screen no longer freezes the wallpapers on the other screens.
+    """
     try:
         with open(_gnome_extension_state_path(), encoding="utf-8") as f:
-            data = {}
+            busy = set()
             for line in f:
-                if "=" in line:
-                    key, _, value = line.strip().partition("=")
-                    data[key] = value.strip()
-        return {
-            "is_any_maximized": data.get("m") == "1",
-            "is_any_fullscreen": data.get("f") == "1",
-        }
+                if "=" not in line:
+                    continue
+                key, _, value = line.strip().partition("=")
+                value = value.strip()
+                if key in ("m", "f"):
+                    continue  # legacy all-monitors format
+                if value and value != "0":
+                    busy.add(key)
+        return {"busy_monitors": busy}
     except OSError:
         return None
 
@@ -547,8 +604,8 @@ class WaylandWindowHandler:
 
     GNOME blocks every window-introspection D-Bus API available to (sandboxed)
     apps ("GetWindows is not allowed"), so Hidamari Prism ships a tiny GNOME
-    Shell extension instead: it watches native window events and mirrors
-    "any window maximized / fullscreen on the active workspace" into a small
+    Shell extension instead: it watches native window events and mirrors which
+    monitor has a maximized/fullscreen window into a small
     file in the app's own data directory. This handler polls that file once
     per second -- a sub-millisecond stat/read -- which is far cheaper than the
     60fps of decode work it lets us avoid when the wallpaper is covered.
@@ -556,7 +613,7 @@ class WaylandWindowHandler:
 
     POLL_INTERVAL_SEC = 1
 
-    def __init__(self, on_window_state_changed: callable):
+    def __init__(self, on_window_state_changed: callable, get_monitor_rects=None):
         self.on_window_state_changed = on_window_state_changed
         self._prev = None
         self._timer_id = GLib.timeout_add_seconds(self.POLL_INTERVAL_SEC, self._poll)
@@ -572,17 +629,15 @@ class WaylandWindowHandler:
             # maximized" so the wallpaper always resumes cleanly.
             if self._prev is not None:
                 self._prev = None
-                self._emit(False, False)
+                self._emit({"busy_monitors": set()})
         elif state != self._prev:
             self._prev = state
-            self._emit(state["is_any_maximized"], state["is_any_fullscreen"])
+            self._emit(state)
         return GLib.SOURCE_CONTINUE
 
-    def _emit(self, is_max, is_fs):
+    def _emit(self, state):
         try:
-            self.on_window_state_changed(
-                {"is_any_maximized": is_max, "is_any_fullscreen": is_fs}
-            )
+            self.on_window_state_changed(state)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[WaylandWindowHandler] {e}")
 

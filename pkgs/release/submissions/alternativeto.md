@@ -10,10 +10,13 @@
 ## Short description
 
 Turn your Linux desktop into a living, breathing place: video, stream, animated
-webpage, or static-image wallpaper that sips CPU and power.
+webpage, or static-image wallpaper that sips CPU and power. Pause-on-maximize is
+per monitor, so a maximized window on one screen never freezes the others.
 
-Compatibility: X11 (any desktop) and GNOME Wayland are fully supported; other
-Wayland desktops are not (see the project README).
+Compatibility: X11 is fully supported on every desktop; GNOME Wayland is fully
+supported too. On KDE Plasma, Sway, and other Wayland compositors the wallpaper
+plays in a plain window and the window-state toggles are no-ops (see the project
+README).
 
 ## Tags
 

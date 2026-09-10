@@ -212,13 +212,6 @@ class Hidamari_PrismServer:
                 self.sys_icon_process.start()
             self._prev_mode = self.mode
 
-    @staticmethod
-    def _quit_player():
-        """Quit current player"""
-        player = get_instance(DBUS_NAME_PLAYER)
-        if player:
-            player.quit_player()
-
     def video(self, video_path=None, monitor=None):
         # Prefer swapping media in place on the already-running player process
         # rather than killing and re-spawning it. A fresh VLC instance initializes
@@ -413,12 +406,12 @@ class Hidamari_PrismServer:
         self.gui_process.start()
 
     def quit(self):
-        try:
-            self._quit_player()
-        except GLib.Error:
-            pass
-
-        # Quit all processes with proper cleanup
+        # Do NOT do a synchronous DBus ``quit_player()`` here (see the note in
+        # ``_setup_player``): that call only returns after the player's
+        # window.cleanup() finishes, which can block forever on a wedged VLC
+        # decoder. If this method stalls, the GUI blocked waiting for its reply
+        # never closes and the whole app hangs. Terminating the process signal
+        # stops its video just as well and always returns.
         for process in [self.player_process, self.gui_process, self.sys_icon_process]:
             if process and process.is_alive():
                 process.terminate()

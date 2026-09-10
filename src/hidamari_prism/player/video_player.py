@@ -49,6 +49,7 @@ from hidamari_prism.commons import (
 from hidamari_prism.menu import build_menu
 from hidamari_prism.player.base_player import BasePlayer
 from hidamari_prism.utils import (
+    WINDOW_STATE_ALL_MONITORS,
     ActiveHandler,
     ConfigUtil,
     WaylandWindowHandler,
@@ -169,7 +170,7 @@ if is_wayland():
         # KDE/Sway/other Wayland: no supported window-state source, keep a
         # no-op so window-state toggles remain harmless there.
         class WindowHandler:  # noqa: F811
-            def __init__(self, _: callable):
+            def __init__(self, _: callable, get_monitor_rects=None):
                 pass
 
 
@@ -467,7 +468,7 @@ class VideoPlayer(BasePlayer):
         # re-enabling the window-state handler there (or the handler it creates
         # polling immediately) can call back into these attributes.
         self.active_handler, self.window_handler = None, None
-        self.is_any_maximized, self.is_any_fullscreen = False, False
+        self._busy_monitors = set()
         self.is_paused_by_user = False
 
         # Shuffle support
@@ -760,41 +761,63 @@ class VideoPlayer(BasePlayer):
         if active:
             self.pause_playback()
         else:
-            if self._should_playback_start():
-                self.start_playback()
-            else:
-                self.pause_playback()
+            self.start_playback()
 
-    def _on_window_state_changed(self, state):
-        self.is_any_maximized, self.is_any_fullscreen = (
-            state["is_any_maximized"],
-            state["is_any_fullscreen"],
-        )
-        logger.info(
-            f"is_any_maximized: {self.is_any_maximized}, is_any_fullscreen: {self.is_any_fullscreen}"
-        )
+    def _monitor_is_busy(self, model):
+        """True when the given monitor model currently has a maximized or
+        fullscreen window in front of its wallpaper."""
+        if WINDOW_STATE_ALL_MONITORS in self._busy_monitors:
+            return True
+        return model in self._busy_monitors
 
-        if self.config[CONFIG_KEY_PAUSE_WHEN_MAXIMIZED]:
-            if self._should_playback_start():
-                self.start_playback()
-            else:
-                self.pause_playback()
-        elif self.config[CONFIG_KEY_MUTE_WHEN_MAXIMIZED]:
-            for monitor, window in self.windows.items():
-                if not monitor.is_primary():
-                    continue
-                if self.is_any_fullscreen or self.is_any_maximized:
-                    window.volume_fade(
-                        target=0,
+    def _monitor_rects(self):
+        """Return {monitor model: (x, y, w, h)} for every active monitor, used
+        by the X11 WindowHandler to attribute blocking windows to a monitor."""
+        rects = {}
+        try:
+            display = Gdk.Display.get_default()
+            for monitor in display.get_monitors():
+                geo = monitor.get_geometry()
+                rects[monitor.get_model()] = (geo.x, geo.y, geo.width, geo.height)
+        except Exception:  # noqa: BLE001
+            pass
+        return rects
+
+    def _apply_window_state(self):
+        """React to a window-state change, per monitor.
+
+        Instead of pausing every wallpaper when any window is maximized (which
+        froze all the other screens too), only the wallpaper(s) on the monitor
+        that actually gained a maximized/fullscreen window pause, and are
+        resumed when that window goes away or is dragged to another monitor.
+        """
+        for monitor, window in self.windows.items():
+            if window is None:
+                continue
+            busy = self._monitor_is_busy(monitor.get_model())
+            if self.config[CONFIG_KEY_PAUSE_WHEN_MAXIMIZED]:
+                if busy:
+                    window.pause_fade(
                         fade_duration_sec=self.config[CONFIG_KEY_FADE_DURATION_SEC],
                         fade_interval=self.config[CONFIG_KEY_FADE_INTERVAL],
                     )
-                else:
-                    window.volume_fade(
+                elif not self.is_paused_by_user:
+                    window.play_fade(
                         target=self.volume,
                         fade_duration_sec=self.config[CONFIG_KEY_FADE_DURATION_SEC],
                         fade_interval=self.config[CONFIG_KEY_FADE_INTERVAL],
                     )
+            elif self.config[CONFIG_KEY_MUTE_WHEN_MAXIMIZED]:
+                window.volume_fade(
+                    target=0 if busy else self.volume,
+                    fade_duration_sec=self.config[CONFIG_KEY_FADE_DURATION_SEC],
+                    fade_interval=self.config[CONFIG_KEY_FADE_INTERVAL],
+                )
+
+    def _on_window_state_changed(self, state):
+        self._busy_monitors = set(state.get("busy_monitors", ()))
+        logger.info(f"[Player] busy monitors: {sorted(self._busy_monitors)}")
+        self._apply_window_state()
 
     def _ensure_window_handler(self):
         """Create the window-state handler when it is needed and not running
@@ -809,17 +832,10 @@ class VideoPlayer(BasePlayer):
             or self.config.get(CONFIG_KEY_MUTE_WHEN_MAXIMIZED, False)
         ):
             return
-        self.window_handler = WindowHandler(self._on_window_state_changed)
+        self.window_handler = WindowHandler(
+            self._on_window_state_changed, get_monitor_rects=self._monitor_rects
+        )
         logger.info(f"[Player] window handler: {type(self.window_handler).__name__}")
-
-    def _should_playback_start(self):
-        if self.config[CONFIG_KEY_PAUSE_WHEN_MAXIMIZED] and (
-            self.is_any_maximized or self.is_any_fullscreen
-        ):
-            return False
-        if self.is_paused_by_user:
-            return False
-        return True
 
     @property
     def mode(self):
@@ -948,13 +964,22 @@ class VideoPlayer(BasePlayer):
             )
 
     def start_playback(self):
-        if self._should_playback_start():
-            for _monitor, window in self.windows.items():
-                window.play_fade(
-                    target=self.volume,
-                    fade_duration_sec=self.config[CONFIG_KEY_FADE_DURATION_SEC],
-                    fade_interval=self.config[CONFIG_KEY_FADE_INTERVAL],
-                )
+        for monitor, window in self.windows.items():
+            if window is None:
+                continue
+            if self.is_paused_by_user:
+                continue
+            # A monitor behind a maximized/fullscreen window stays paused so the
+            # other screens are not frozen by somebody else's window.
+            if self.config.get(CONFIG_KEY_PAUSE_WHEN_MAXIMIZED, False) and (
+                self._monitor_is_busy(monitor.get_model())
+            ):
+                continue
+            window.play_fade(
+                target=self.volume,
+                fade_duration_sec=self.config[CONFIG_KEY_FADE_DURATION_SEC],
+                fade_interval=self.config[CONFIG_KEY_FADE_INTERVAL],
+            )
 
     def set_media_on_all(self, video_path):
         """Swap the wallpaper on every live window to a single video, in place.

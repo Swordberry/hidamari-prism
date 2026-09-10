@@ -5,7 +5,7 @@
 **Developer (handle):** Swordberry
 **License:** GPL-3.0-or-later
 **Homepage:** https://github.com/Swordberry/hidamari-prism
-**Download:** Flatpak bundle on the GitHub release page (v1.0.1) or the AUR (`hidamari-prism`)
+**Download:** Flatpak bundle on the GitHub release page (v1.0.3) or the AUR (`hidamari-prism`)
 
 ## Short description
 
@@ -17,14 +17,18 @@ your desktop background with low CPU/power usage.
 Hidamari Prism is a friendly fork of Hidamari, rewritten in Python and built
 with the help of AI. Features include:
 
-- Video, live-stream, webpage, and static-image wallpapers
+- Video, live-stream, webpage, and static-image wallpapers (static image: GNOME)
+- Searchable wallpapers & playlists
 - Wallpaper playlists with in-order or shuffle playback that loop cleanly
 - Hardware-accelerated decoding (VA-API / VDPAU) with automatic CPU fallback
 - Pause & mute when a window is maximized (X11 + GNOME Wayland)
+- Per-monitor pause: only the screen behind a maximized/fullscreen window
+  pauses
 - Multi-monitor support with per-monitor decoders
 
-Compatibility: X11 (any desktop) and GNOME Wayland fully supported; other
-Wayland desktops are not (renders as a plain window).
+Compatibility: X11 is fully supported on every desktop; GNOME Wayland is fully
+supported too. On other Wayland desktops (KDE Plasma, Sway, …) the wallpaper
+plays in a plain window and pause/mute-when-maximized are no-ops.
 
 Screenshots: `res/screenshot-1.png` (2236x1434).
 Demo video: `res/demo.mp4`.

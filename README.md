@@ -23,13 +23,34 @@ Your support is truly appreciated!
 
 ## What's new in this fork ✨
 
-- **Static image wallpapers** — use images as wallpapers, with zero rendering or decoding overhead.
+- **Static image wallpapers** *(GNOME)* — use images as wallpapers, with zero rendering or decoding overhead.
 - **Playlists** — bundle wallpapers into playlists and switch between them, or add an entire folder at once. When shuffle is **off**, the playlist plays **in order** and loops; when shuffle is on it picks randomly.
 - **Pause & mute when maximized** — the wallpaper pauses automatically when a window is maximized or fullscreen.
+- **Per-monitor pause & mute** — only the screen behind a maximized/fullscreen window pauses; your other monitors keep animating (X11), and a window dragged to another screen pauses that screen's wallpaper on GNOME Wayland.
 - **GNOME Wayland support** — pause/mute on maximize works on Wayland through a tiny bundled GNOME Shell extension (opt-in with confirmation).
+- **Searchable wallpapers & playlists** — find a wallpaper instantly from a search bar in both tabs; the playlist dropdown tracks the window width instead of overflowing.
 - **Power-friendly defaults** — hardware-accelerated decoding by default with automatic CPU fallback; see [Performance](#performance--hardware-compatibility-).
 - **Multi-monitor tuned** — per-monitor decoders and graceful hot-plug handling.
 - **Fork branding, credits and donate links added**, with the original GPL-3.0 license retained.
+
+## Which Linux does it run on? 🖥️
+
+Hidamari Prism is made for **Linux** and ships as a Flatpak, so it runs on any
+distribution that supports Flatpak — Fedora, Ubuntu, Arch, openSUSE, and just
+about anything else.
+
+- **X11 — fully supported on every desktop** (GNOME, KDE Plasma, XFCE, Cinnamon,
+  and any other window manager). Video, stream, and web-page wallpapers work
+  everywhere, and pause/mute-when-maximized works on any X11 desktop through the
+  window manager. Static-image wallpapers and restoring the original wallpaper
+  are GNOME-only.
+- **GNOME on Wayland — fully supported**, including pause/mute when maximized
+  through a tiny opt-in GNOME Shell extension (installed with your
+  confirmation).
+- **KDE Plasma, Sway, and other Wayland compositors** — video, stream, and
+  web-page wallpapers play in a plain window; the window-state toggles and
+  static-image wallpapers are no-ops there. Run an X11 session for the full
+  experience.
 
 ## Features 🔥
 
@@ -61,7 +82,7 @@ Hidamari_Prism offers similar feature as above, with additional features listed 
 <sup>4</sup> Use <i>vlc</i> as backend. On <i>NVIDIA + Wayland</i> hardware decoding requires the host's <i>nvidia-vaapi-driver</i>; otherwise it automatically falls back to CPU decoding     
 <sup>5</sup> Use <i>yt-dlp</i> as backend, tested with YouTube videos  
 <sup>6</sup> Theoretically it can be anything from a normal webpage to <i>Unity/Godot WebGL games</i>, be creative!  
-<sup>7</sup> Any image in your wallpaper folder can be set as a static wallpaper with a blur effect.  
+<sup>7</sup> Any image in your wallpaper folder can be set as a static wallpaper with a blur effect (currently GNOME-only).  
 <sup>8</sup> Create playlists from your wallpaper folder, add entire folders at once, and toggle <i>shuffle</i>. Turn shuffle off for a perfectly ordered, looping sequence. This is a fork feature.
 
 ## Installation ⏬
