@@ -5,7 +5,7 @@
 **Developer (handle):** Swordberry
 **License:** GPL-3.0-or-later
 **Homepage:** https://github.com/Swordberry/hidamari-prism
-**Download:** Flatpak bundle on the GitHub release page (v1.0.3) or the AUR (`hidamari-prism`)
+**Download:** Flatpak bundle on the GitHub release page (v1.0.4) or the AUR (`hidamari-prism`)
 
 ## Short description
 
@@ -25,6 +25,8 @@ with the help of AI. Features include:
 - Per-monitor pause: only the screen behind a maximized/fullscreen window
   pauses
 - Multi-monitor support with per-monitor decoders
+- Per-monitor independent shuffle toggled from the settings window or systray menu
+- No audio glitches on playlist shuffle when the wallpaper is muted
 
 Compatibility: X11 is fully supported on every desktop; GNOME Wayland is fully
 supported too. On other Wayland desktops (KDE Plasma, Sway, …) the wallpaper

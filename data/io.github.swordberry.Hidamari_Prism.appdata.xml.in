@@ -29,6 +29,15 @@
     <p>Similar functionality to Xwinwrap + mpv or Komorebi, with more features.</p>
   </description>
   <releases>
+    <release version="1.0.4" date="2026-09-10" type="stable">
+      <description>
+        <p>Hidamari Prism v1.0.4</p>
+        <ul>
+          <li>Fixed audio glitches on playlist shuffle — a muted (or zero-volume) wallpaper no longer opens a Pulse/PipeWire stream, so other apps (e.g. games) no longer drop audio for a beat when the wallpaper rotates</li>
+          <li>New "Shuffle Monitors Independently" toggle in the AppIndicator/systray menu (previously only in the GUI window)</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.3" date="2026-09-10" type="stable">
       <description>
         <p>Hidamari Prism v1.0.3</p>

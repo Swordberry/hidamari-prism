@@ -33,6 +33,8 @@ your wallpaper, and it does all of it while sipping CPU and power.
   with a watchdog that automatically falls back to CPU if the GPU decoder
   glitches.
 - **Multi-monitor ready** — per-monitor decoders and graceful hot-plug handling.
+- **Shuffle monitors independently** — toggle per-monitor independent shuffle from the settings window or the AppIndicator/systray menu.
+- **No audio glitches on shuffle** — a muted wallpaper opens no audio stream at all, so games and music keep their sound when a playlist rotates.
 - **Clean looping** — playlists and videos loop predictably at the seam; no
   experimental smoothing stack.
 
@@ -57,7 +59,7 @@ about anything else.
 ### Install
 
 - Flatpak bundle: attach `hidamari_prism-playlists.flatpak` from the GitHub
-  release v1.0.3.
+  release v1.0.4.
 - `flatpak install --user ./hidamari_prism-playlists.flatpak && flatpak run io.github.swordberry.Hidamari_Prism`
 - AUR: `paru -S hidamari-prism`
 

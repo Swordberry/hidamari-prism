@@ -67,6 +67,14 @@ def on_item_pause():
             server.start_playback()
 
 
+def on_item_shuffle_independent(item):
+    server = connect()
+    if server:
+        enabled = bool(item.get_active())
+        server.shuffle_independent = enabled
+        logger.info(f"[Menu] shuffle_independent -> {enabled}")
+
+
 def on_item_reload():
     server = connect()
     if server:
@@ -127,12 +135,26 @@ def build_menu(mode):
     item_lucky = Gtk.MenuItem(label=_("I'm Feeling Lucky"))
     item_lucky.connect("activate", lambda *_: start_action(on_item_lucky))
     #
+    item_independent = Gtk.CheckMenuItem(
+        label=_("Shuffle Monitors Independently")
+    )
+    server = connect()
+    if server is not None:
+        try:
+            item_independent.set_active(bool(server.shuffle_independent))
+        except GLib.Error:
+            pass
+    item_independent.connect(
+        "activate",
+        lambda item, *_: start_action(lambda: on_item_shuffle_independent(item)),
+    )
+    #
     item_quit = Gtk.MenuItem(label=_("Quit Hidamari Prism"))
     item_quit.connect("activate", lambda *_: start_action(on_item_quit))
     #
     # Filter out unsupported action in current mode
     if mode == MODE_WEBPAGE:
-        item_list = [item_show, item_mute, item_stop, item_start, item_reload, item_lucky, item_quit]
+        item_list = [item_show, item_mute, item_stop, item_start, item_reload, item_lucky, item_independent, item_quit]
     else:
         item_list = [
             item_show,
@@ -142,6 +164,7 @@ def build_menu(mode):
             item_start,
             item_reload,
             item_lucky,
+            item_independent,
             item_quit,
         ]
     for item in item_list:

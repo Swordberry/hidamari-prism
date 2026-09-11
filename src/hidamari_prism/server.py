@@ -87,6 +87,7 @@ class Hidamari_PrismServer:
         <property name="is_static_wallpaper" type="b" access="readwrite"/>
         <property name="is_pause_when_maximized" type="b" access="readwrite"/>
         <property name="is_mute_when_maximized" type="b" access="readwrite"/>
+        <property name="shuffle_independent" type="b" access="readwrite"/>
     </interface>
     </node>
     """
@@ -513,6 +514,21 @@ class Hidamari_PrismServer:
         player = get_instance(DBUS_NAME_PLAYER)
         if player is not None:
             player.reload_config()
+
+    @property
+    def shuffle_independent(self):
+        """Read the per-monitor independent-shuffle toggle from the config."""
+        shuffle_config = self.config.get(CONFIG_KEY_SHUFFLE, {}) or {}
+        return bool(shuffle_config.get(CONFIG_KEY_SHUFFLE_INDEPENDENT, False))
+
+    @shuffle_independent.setter
+    def shuffle_independent(self, enabled):
+        logger.info(f"[Server] shuffle_independent -> {bool(enabled)}")
+        self.config[CONFIG_KEY_SHUFFLE][CONFIG_KEY_SHUFFLE_INDEPENDENT] = bool(enabled)
+        self._save_config()
+        player = get_instance(DBUS_NAME_PLAYER)
+        if player is not None:
+            player.reload_shuffle()
 
 
 def get_instance(dbus_name):

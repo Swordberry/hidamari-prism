@@ -31,6 +31,7 @@ Your support is truly appreciated!
 - **Searchable wallpapers & playlists** — find a wallpaper instantly from a search bar in both tabs; the playlist dropdown tracks the window width instead of overflowing.
 - **Power-friendly defaults** — hardware-accelerated decoding by default with automatic CPU fallback; see [Performance](#performance--hardware-compatibility-).
 - **Multi-monitor tuned** — per-monitor decoders and graceful hot-plug handling.
+- **Shuffle monitors independently** — a per-monitor independent-shuffle toggle in both the settings window and the AppIndicator/systray menu, so each screen can play its own playlist.
 - **Fork branding, credits and donate links added**, with the original GPL-3.0 license retained.
 
 ## Which Linux does it run on? 🖥️

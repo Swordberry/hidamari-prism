@@ -763,6 +763,18 @@ class VideoPlayer(BasePlayer):
         else:
             self.start_playback()
 
+    def _audio_effectively_off(self, monitor=None):
+        """True when the wallpaper's audio should not reach the system at all.
+
+        ``monitor`` extra is accepted for parity with ``_monitor_is_busy`` call
+        sites; currently the decision is global (mute or zero volume turns the
+        single audio-bearing primary monitor off). Secondary monitors never
+        carry wallpaper audio anyway.
+        """
+        if self.config.get(CONFIG_KEY_MUTE, False):
+            return True
+        return self.config.get(CONFIG_KEY_VOLUME, 0) <= 0
+
     def _monitor_is_busy(self, model):
         """True when the given monitor model currently has a maximized or
         fullscreen window in front of its wallpaper."""
@@ -875,6 +887,12 @@ class VideoPlayer(BasePlayer):
         # Prevent awful ear-rape with multiple instances.
         if not monitor.is_primary():
             media.add_option("no-audio")
+        # A muted (or zero-volume) wallpaper must not open a Pulse/PipeWire
+        # stream at all: VLC tears the stream down and re-creates it on every
+        # shuffle, and that audio-graph churn can silence other apps for a beat
+        # (e.g. a game's audio while the playlist rotates).
+        if self._audio_effectively_off(monitor):
+            media.add_option("no-audio")
         window.set_media(media)
         window.set_position(0.0)
         # Stretch the wallpaper to fill this monitor's current size.
@@ -903,7 +921,12 @@ class VideoPlayer(BasePlayer):
                 media.add_option("input-repeat=65535")
                 window.set_media(media)
                 if monitor.is_primary():
-                    window.add_audio_track(audio_url)
+                    if not self._audio_effectively_off(monitor):
+                        window.add_audio_track(audio_url)
+                    else:
+                        # Muted/zero-volume wallpaper: never open a Pulse stream
+                        # (see _apply_source_to_window for the same reasoning).
+                        media.add_option("no-audio")
                 else:
                     # `get_optimal_video` now might return video with audio.
                     media.add_option("no-audio")
@@ -936,10 +959,13 @@ class VideoPlayer(BasePlayer):
 
     @volume.setter
     def volume(self, volume):
+        was_off = self._audio_effectively_off()
         self.config[CONFIG_KEY_VOLUME] = volume
         for monitor in self.windows:
             if monitor.is_primary():
                 self.windows[monitor].set_volume(volume)
+        if was_off and not self._audio_effectively_off():
+            self._reapply_audio_enabled_media()
 
     @property
     def is_mute(self):
@@ -947,10 +973,31 @@ class VideoPlayer(BasePlayer):
 
     @is_mute.setter
     def is_mute(self, is_mute):
+        was_off = self._audio_effectively_off()
         self.config[CONFIG_KEY_MUTE] = is_mute
         for monitor, window in self.windows.items():
             if monitor.is_primary():
                 window.set_mute(is_mute)
+        if was_off and not self._audio_effectively_off():
+            self._reapply_audio_enabled_media()
+
+    def _reapply_audio_enabled_media(self):
+        """Re-point the primary monitor's media so it drops the ``no-audio``
+        option that silence (mute or zero volume) stamped on it. VLC only
+        reads the option when the media is (re)assigned, so raising the volume
+        or unmuting must re-apply the source for sound to return."""
+        if self.mode != MODE_VIDEO:
+            return
+        for monitor, window in self.windows.items():
+            if window is None:
+                continue
+            if not monitor.is_primary():
+                continue
+            try:
+                self._apply_source_to_window(monitor, window)
+                self.start_playback()
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"[Player] re-apply audio media failed on {monitor.get_model()}: {e}")
 
     @property
     def is_playing(self):

@@ -1,4 +1,4 @@
-# Hidamari Prism v1.0.3 — the sunny spot for your Linux desktop
+# Hidamari Prism v1.0.4 — the sunny spot for your Linux desktop
 
 A warm, living desktop, now cleaner than ever. Hidamari Prism is a fork of
 [Hidamari](https://github.com/jeffshee/hidamari) by Jeff Shee, written in Python
@@ -27,14 +27,13 @@ just about anything else.
 
 ## What's new in this release
 
-- **Per-monitor pause & mute.** Pause-on-maximize finally works per screen:
-  only the wallpaper behind a maximized or fullscreen window pauses (X11), and
-  on GNOME Wayland the extension tracks the monitor **connector**, so a window
-  dragged to another screen pauses that screen's wallpaper instead of the old
-  one. Your other monitors keep animating while one is covered.
-- **Quit button fixed.** Clicking Quit now cleanly shuts down the server, every
-  wallpaper player, the system tray, and the control panel — no orphan
-  processes.
+- **No more audio glitches on shuffle.** A muted (or zero-volume) wallpaper no
+  longer opens a Pulse/PipeWire stream at all — so when the playlist rotates,
+  other applications (games, music, video calls) no longer drop audio for a
+  beat while the audio graph renegotiates.
+- **"Shuffle Monitors Independently" in the systray menu.** The per-monitor
+  independent-shuffle toggle now lives in the AppIndicator icon too, right
+  alongside Mute, Play/Pause, and the rest.
 
 ## Fork features (this fork)
 

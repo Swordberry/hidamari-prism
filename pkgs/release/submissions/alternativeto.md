@@ -12,6 +12,9 @@
 Turn your Linux desktop into a living, breathing place: video, stream, animated
 webpage, or static-image wallpaper that sips CPU and power. Pause-on-maximize is
 per monitor, so a maximized window on one screen never freezes the others.
+Per-monitor independent shuffle is one click away in the systray menu, and a
+muted wallpaper opens no audio stream, so games and music keep their sound when
+a playlist rotates.
 
 Compatibility: X11 is fully supported on every desktop; GNOME Wayland is fully
 supported too. On KDE Plasma, Sway, and other Wayland compositors the wallpaper
